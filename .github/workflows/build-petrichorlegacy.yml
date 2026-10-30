@@ -1,0 +1,34 @@
+name: Build PetrichorLegacy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore PetrichorLegacy/PetrichorLegacy.csproj
+      - name: Build
+        run: dotnet build PetrichorLegacy/PetrichorLegacy.csproj -c Release --no-restore
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p package/PetrichorLegacy
+          cp PetrichorLegacy/bin/Release/netstandard2.1/PetrichorLegacy.dll package/PetrichorLegacy/
+          cp PetrichorLegacy/manifest.json package/PetrichorLegacy/
+          cd package
+          zip -r ../PetrichorLegacy-0.1.0.zip PetrichorLegacy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PetrichorLegacy-0.1.0
+          path: |
+            PetrichorLegacy-0.1.0.zip
+            package/PetrichorLegacy/PetrichorLegacy.dll
+          if-no-files-found: error
