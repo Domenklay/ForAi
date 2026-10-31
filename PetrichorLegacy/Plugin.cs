@@ -14,12 +14,12 @@ namespace PetrichorLegacy
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.3.3";
+        public const string PluginVersion = "0.4.0";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
 
-        private MetaProgressionUIV4 _ui;
+        private MetaProgressionUIV5 _ui;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
 
         private void Awake()
@@ -31,10 +31,12 @@ namespace PetrichorLegacy
             ProgressionNetwork.Register();
             RunTracker.Install();
             TalentEffects.Install();
+            AdditionalSpecEffects.Install();
+            CapstoneRewardSystem.Install();
             PerfectionRuntimeEffects.Install();
             MonsterRaritySystem.Install();
 
-            _ui = gameObject.AddComponent<MetaProgressionUIV4>();
+            _ui = gameObject.AddComponent<MetaProgressionUIV5>();
             _ui.Configure(_toggleKey);
 
             SaveService.RefreshProfile();
@@ -46,6 +48,8 @@ namespace PetrichorLegacy
             SaveService.SaveCurrent();
             MonsterRaritySystem.Uninstall();
             PerfectionRuntimeEffects.Uninstall();
+            CapstoneRewardSystem.Uninstall();
+            AdditionalSpecEffects.Uninstall();
             RunTracker.Uninstall();
             TalentEffects.Uninstall();
         }
