@@ -10,13 +10,11 @@ using UnityEngine;
 namespace PetrichorLegacy
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(R2API.RecalculateStatsAPI.PluginGUID)]
-    [BepInDependency(R2API.Networking.NetworkingAPI.PluginGUID)]
     public sealed class PetrichorLegacyPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -28,22 +26,24 @@ namespace PetrichorLegacy
         {
             Instance = this;
             Log = Logger;
-            _toggleKey = Config.Bind("UI", "ToggleKey", new KeyboardShortcut(KeyCode.M), "Open meta progression in the character-select lobby.");
+            _toggleKey = Config.Bind("UI", "ToggleKey", new KeyboardShortcut(KeyCode.M), "Open meta progression UI.");
 
             ProgressionNetwork.Register();
             RunTracker.Install();
             TalentEffects.Install();
+            MonsterRaritySystem.Install();
 
             _ui = gameObject.AddComponent<MetaProgressionUI>();
             _ui.Configure(_toggleKey);
 
             SaveService.RefreshProfile();
-            Logger.LogInfo($"{PluginName} {PluginVersion} loaded.");
+            Logger.LogInfo($"{PluginName} Progression {PluginVersion} loaded. Press M to open the progression window.");
         }
 
         private void OnDestroy()
         {
             SaveService.SaveCurrent();
+            MonsterRaritySystem.Uninstall();
             RunTracker.Uninstall();
             TalentEffects.Uninstall();
         }
