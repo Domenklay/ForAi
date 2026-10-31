@@ -1,4 +1,4 @@
-name: Build PetrichorLegacy
+name: Build PetrichorLegacy UI 0.6.0
 
 on:
   push:
@@ -15,6 +15,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Apply 0.4.1 source patch
+        run: python3 tools/patch_petrichorlegacy_041.py
+      - name: Apply 0.5.0 seven-class patch
+        run: python3 tools/patch_petrichorlegacy_050.py
+      - name: Apply 0.5.1 early progression patch
+        run: python3 tools/patch_petrichorlegacy_051.py
+      - name: Apply 0.6.0 enemy affix patch
+        run: python3 tools/patch_petrichorlegacy_060.py
       - name: Restore
         run: dotnet restore PetrichorLegacy/PetrichorLegacy.csproj
       - name: Build
@@ -25,12 +33,14 @@ jobs:
           mkdir -p package/PetrichorLegacy
           cp PetrichorLegacy/bin/Release/netstandard2.1/PetrichorLegacy.dll package/PetrichorLegacy/
           cp PetrichorLegacy/manifest.json package/PetrichorLegacy/
+          cp "$HOME/.nuget/packages/newtonsoft.json/12.0.3/lib/net45/Newtonsoft.Json.dll" package/PetrichorLegacy/
           cd package
-          zip -r ../PetrichorLegacy-0.1.0.zip PetrichorLegacy
+          zip -r ../PetrichorLegacy-0.6.0.zip PetrichorLegacy
       - uses: actions/upload-artifact@v4
         with:
-          name: PetrichorLegacy-0.1.0
+          name: PetrichorLegacy-0.6.0
           path: |
-            PetrichorLegacy-0.1.0.zip
+            PetrichorLegacy-0.6.0.zip
             package/PetrichorLegacy/PetrichorLegacy.dll
+            package/PetrichorLegacy/Newtonsoft.Json.dll
           if-no-files-found: error
