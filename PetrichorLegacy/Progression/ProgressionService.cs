@@ -44,20 +44,13 @@ namespace PetrichorLegacy.Progression
         public static void GrantLevelRewards(ProfileProgress profile, int newLevel)
         {
             if (profile == null || newLevel < 2) return;
-
-            if (newLevel <= 40)
-            {
-                profile.unspentTalentPoints++;
-            }
+            if (newLevel <= 40) profile.unspentTalentPoints++;
             else
             {
                 profile.unspentMasteryPoints++;
-                if ((newLevel & 1) == 0)
-                    profile.unspentTalentPoints++;
+                if ((newLevel & 1) == 0) profile.unspentTalentPoints++;
             }
-
-            if (newLevel % 25 == 0)
-                profile.unspentPerfectionPoints++;
+            if (newLevel % 25 == 0) profile.unspentPerfectionPoints++;
         }
 
         public static int EarnedTalentPointsForLevel(int level)
@@ -74,36 +67,12 @@ namespace PetrichorLegacy.Progression
         {
             error = null;
             var def = TalentCatalog.Find(talentId);
-            if (profile == null || def == null)
-            {
-                error = "Неизвестный талант.";
-                return false;
-            }
-
-            if (profile.level < def.UnlockLevel)
-            {
-                error = $"Требуется мета-уровень {def.UnlockLevel}.";
-                return false;
-            }
-
+            if (profile == null || def == null) { error = "Неизвестный талант."; return false; }
+            if (profile.level < def.UnlockLevel) { error = $"Требуется мета-уровень {def.UnlockLevel}."; return false; }
             var current = TalentCatalog.GetRank(profile, talentId);
-            if (current >= def.MaxRank)
-            {
-                error = "Талант уже изучен полностью.";
-                return false;
-            }
-
-            if (!TalentCatalog.PrerequisiteMet(profile, def))
-            {
-                error = "Сначала изучи предыдущий узел ветки.";
-                return false;
-            }
-
-            if (profile.unspentTalentPoints < def.PointCost)
-            {
-                error = "Недостаточно очков талантов.";
-                return false;
-            }
+            if (current >= def.MaxRank) { error = "Талант уже изучен полностью."; return false; }
+            if (!TalentCatalog.PrerequisiteMet(profile, def)) { error = "Сначала изучи предыдущий узел ветки."; return false; }
+            if (profile.unspentTalentPoints < def.PointCost) { error = "Недостаточно очков талантов."; return false; }
 
             var record = profile.talents.FirstOrDefault(t => t.id == talentId);
             if (record == null)
@@ -111,7 +80,6 @@ namespace PetrichorLegacy.Progression
                 record = new TalentRankRecord { id = talentId, rank = 0 };
                 profile.talents.Add(record);
             }
-
             record.rank++;
             profile.unspentTalentPoints -= def.PointCost;
             SaveService.SaveCurrent();
@@ -122,26 +90,10 @@ namespace PetrichorLegacy.Progression
         {
             error = null;
             var def = MasteryCatalog.Find(masteryId);
-            if (profile == null || def == null)
-            {
-                error = "Неизвестное мастерство.";
-                return false;
-            }
-            if (profile.level < 41)
-            {
-                error = "Мастерство открывается с 41 уровня.";
-                return false;
-            }
-            if (profile.activeClass != def.ClassId)
-            {
-                error = "Сначала сделай этот класс активным.";
-                return false;
-            }
-            if (profile.unspentMasteryPoints <= 0)
-            {
-                error = "Недостаточно очков мастерства.";
-                return false;
-            }
+            if (profile == null || def == null) { error = "Неизвестное мастерство."; return false; }
+            if (profile.level < 41) { error = "Мастерство открывается с 41 уровня."; return false; }
+            if (profile.activeClass != def.ClassId) { error = "Сначала сделай этот класс активным."; return false; }
+            if (profile.unspentMasteryPoints <= 0) { error = "Недостаточно очков мастерства."; return false; }
 
             var record = profile.masteries.FirstOrDefault(x => x.id == masteryId);
             if (record == null)
@@ -159,27 +111,11 @@ namespace PetrichorLegacy.Progression
         {
             error = null;
             var def = PerfectionCatalog.Find(perfectionId);
-            if (profile == null || def == null)
-            {
-                error = "Неизвестный узел Совершенства.";
-                return false;
-            }
-            if (profile.level < def.UnlockLevel)
-            {
-                error = $"Требуется уровень {def.UnlockLevel}.";
-                return false;
-            }
+            if (profile == null || def == null) { error = "Неизвестный узел Совершенства."; return false; }
+            if (profile.level < def.UnlockLevel) { error = $"Требуется уровень {def.UnlockLevel}."; return false; }
             var rank = PerfectionCatalog.GetRank(profile, perfectionId);
-            if (rank >= def.MaxRank)
-            {
-                error = "Узел уже изучен.";
-                return false;
-            }
-            if (profile.unspentPerfectionPoints <= 0)
-            {
-                error = "Недостаточно очков Совершенства.";
-                return false;
-            }
+            if (rank >= def.MaxRank) { error = "Узел уже изучен."; return false; }
+            if (profile.unspentPerfectionPoints <= 0) { error = "Недостаточно очков Совершенства."; return false; }
 
             var record = profile.perfections.FirstOrDefault(x => x.id == perfectionId);
             if (record == null)
@@ -197,25 +133,13 @@ namespace PetrichorLegacy.Progression
         {
             error = null;
             if (profile == null) return false;
-            if (Run.instance != null)
-            {
-                error = "Класс можно менять только вне забега.";
-                return false;
-            }
-            if (profile.level < 10)
-            {
-                error = "Классы открываются на 10 уровне.";
-                return false;
-            }
+            if (Run.instance != null) { error = "Класс можно менять только вне забега."; return false; }
+            if (profile.level < 10) { error = "Классы открываются на 10 уровне."; return false; }
             if (classId != "Guardian" && classId != "Slayer" && classId != "Pathfinder" && classId != "Seeker")
-            {
-                error = "Неизвестный класс.";
-                return false;
-            }
+            { error = "Неизвестный класс."; return false; }
 
             profile.activeClass = classId;
-            if (!SpecBelongsToClass(profile.activeSpecialization, classId))
-                profile.activeSpecialization = string.Empty;
+            if (!SpecBelongsToClass(profile.activeSpecialization, classId)) profile.activeSpecialization = string.Empty;
             SaveService.SaveCurrent();
             return true;
         }
@@ -224,21 +148,9 @@ namespace PetrichorLegacy.Progression
         {
             error = null;
             if (profile == null) return false;
-            if (Run.instance != null)
-            {
-                error = "Специализацию можно менять только вне забега.";
-                return false;
-            }
-            if (profile.level < 20)
-            {
-                error = "Специализации открываются на 20 уровне.";
-                return false;
-            }
-            if (!SpecBelongsToClass(specId, profile.activeClass))
-            {
-                error = "Эта специализация не принадлежит активному классу.";
-                return false;
-            }
+            if (Run.instance != null) { error = "Специализацию можно менять только вне забега."; return false; }
+            if (profile.level < 20) { error = "Специализации открываются на 20 уровне."; return false; }
+            if (!SpecBelongsToClass(specId, profile.activeClass)) { error = "Эта специализация не принадлежит активному классу."; return false; }
 
             profile.activeSpecialization = specId;
             SaveService.SaveCurrent();
@@ -279,11 +191,12 @@ namespace PetrichorLegacy.Progression
             if (level >= 10) capacity = 3;
             if (level >= 20) capacity = 5;
             if (level >= 40) capacity = 7;
-            if (level >= 70) capacity = 10;
-            if (level >= 100) capacity = 11;
-            if (level >= 150) capacity = 12;
-            if (level >= 250) capacity = 13;
-            if (level >= 400) capacity = 14;
+            if (level >= 50) capacity = 10;
+            if (level >= 70) capacity = 11;
+            if (level >= 100) capacity = 12;
+            if (level >= 150) capacity = 13;
+            if (level >= 250) capacity = 14;
+            if (level >= 400) capacity = 15;
 
             capacity += TalentCatalog.GetRank(profile, "legacy_pack");
             capacity += PerfectionCatalog.GetRank(profile, "perfection_pack");
