@@ -31,6 +31,7 @@ namespace PetrichorLegacy
             ProgressionNetwork.Register();
             RunTracker.Install();
             TalentEffects.Install();
+            PerfectionRuntimeEffects.Install();
             MonsterRaritySystem.Install();
 
             _ui = gameObject.AddComponent<MetaProgressionUI>();
@@ -44,6 +45,7 @@ namespace PetrichorLegacy
         {
             SaveService.SaveCurrent();
             MonsterRaritySystem.Uninstall();
+            PerfectionRuntimeEffects.Uninstall();
             RunTracker.Uninstall();
             TalentEffects.Uninstall();
         }
