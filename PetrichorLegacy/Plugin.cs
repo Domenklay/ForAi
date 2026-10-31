@@ -14,7 +14,7 @@ namespace PetrichorLegacy
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.1.2";
+        public const string PluginVersion = "0.2.0";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -31,17 +31,19 @@ namespace PetrichorLegacy
             ProgressionNetwork.Register();
             RunTracker.Install();
             TalentEffects.Install();
+            MonsterRaritySystem.Install();
 
             _ui = gameObject.AddComponent<MetaProgressionUI>();
             _ui.Configure(_toggleKey);
 
             SaveService.RefreshProfile();
-            Logger.LogInfo($"{PluginName} Compatibility {PluginVersion} loaded. Press M to open the progression window.");
+            Logger.LogInfo($"{PluginName} Progression {PluginVersion} loaded. Press M to open the progression window.");
         }
 
         private void OnDestroy()
         {
             SaveService.SaveCurrent();
+            MonsterRaritySystem.Uninstall();
             RunTracker.Uninstall();
             TalentEffects.Uninstall();
         }
