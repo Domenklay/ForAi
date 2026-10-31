@@ -29,7 +29,7 @@ namespace PetrichorLegacy.Networking
                 {
                     if (!NetworkServer.active)
                     {
-                        PetrichorLegacyPlugin.Log.LogWarning("Multiplayer client detected. Meta bonuses are host/single-player authoritative in v0.3.0.");
+                        PetrichorLegacyPlugin.Log.LogWarning("Multiplayer client detected. Meta bonuses are host/single-player authoritative in v0.4.0.");
                         yield break;
                     }
 
@@ -50,6 +50,7 @@ namespace PetrichorLegacy.Networking
             ServerProgressionState.Set(master, validated);
             ApplyRunStartBonuses(master, validated);
             ApplyValidatedLoadout(master, validated, profile.startingLoadout);
+            CapstoneRewardSystem.Apply(master);
             master.GetBody()?.RecalculateStats();
             PetrichorLegacyPlugin.Log.LogInfo($"Meta progression applied: level={validated.Level}, class={validated.ActiveClass}, spec={validated.ActiveSpecialization}.");
         }
