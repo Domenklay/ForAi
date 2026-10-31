@@ -14,7 +14,7 @@ namespace PetrichorLegacy
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.4.1";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
