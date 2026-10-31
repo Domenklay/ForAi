@@ -28,15 +28,12 @@ namespace PetrichorLegacy.Progression
             new RewardDef { TalentId = "bastion_legendary", DisplayName = "Defensive Microbots", ItemCandidates = new[] { "CaptainDefenseMatrix" } },
             new RewardDef { TalentId = "unbroken_legendary", DisplayName = "Rejuvenation Rack", ItemCandidates = new[] { "IncreaseHealing" } },
             new RewardDef { TalentId = "vanguard_legendary", DisplayName = "Shattering Justice", ItemCandidates = new[] { "ArmorReductionOnHit" } },
-
             new RewardDef { TalentId = "executioner_legendary", DisplayName = "Ceremonial Dagger", ItemCandidates = new[] { "Dagger" } },
             new RewardDef { TalentId = "hunter_legendary", DisplayName = "Wake of Vultures", ItemCandidates = new[] { "HeadHunter" } },
             new RewardDef { TalentId = "berserker_legendary", DisplayName = "Unstable Tesla Coil", ItemCandidates = new[] { "ShockNearby" } },
-
             new RewardDef { TalentId = "scout_legendary", DisplayName = "Alien Head", ItemCandidates = new[] { "AlienHead" } },
             new RewardDef { TalentId = "acro_legendary", DisplayName = "Hardlight Afterburner", ItemCandidates = new[] { "UtilitySkillMagazine" } },
             new RewardDef { TalentId = "saboteur_legendary", DisplayName = "Sentient Meat Hook", ItemCandidates = new[] { "BounceNearby" } },
-
             new RewardDef { TalentId = "merchant_legendary", DisplayName = "Spare Drone Parts", ItemCandidates = new[] { "DroneWeapons" } },
             new RewardDef { TalentId = "prospector_legendary", DisplayName = "57 Leaf Clover", ItemCandidates = new[] { "Clover" } },
             new RewardDef { TalentId = "relic_legendary", DisplayName = "Soulbound Catalyst", ItemCandidates = new[] { "Talisman" } }
@@ -44,24 +41,21 @@ namespace PetrichorLegacy.Progression
 
         private static readonly HashSet<string> MissingLogged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        public static void Install()
-        {
-            On.RoR2.CharacterMaster.OnBodyStart += CharacterMaster_OnBodyStart;
-        }
-
-        public static void Uninstall()
-        {
-            On.RoR2.CharacterMaster.OnBodyStart -= CharacterMaster_OnBodyStart;
-        }
+        public static void Install() => On.RoR2.CharacterMaster.OnBodyStart += CharacterMaster_OnBodyStart;
+        public static void Uninstall() => On.RoR2.CharacterMaster.OnBodyStart -= CharacterMaster_OnBodyStart;
 
         private static void CharacterMaster_OnBodyStart(On.RoR2.CharacterMaster.orig_OnBodyStart orig, CharacterMaster self, CharacterBody body)
         {
             orig(self, body);
-            if (!NetworkServer.active || self == null || self.playerCharacterMasterController == null || self.inventory == null) return;
-            if (ServerProgressionState.Get(self) == null) return;
+            Apply(self);
+        }
 
-            foreach (var reward in ClassRewards) GrantIfUnlocked(self, reward);
-            foreach (var reward in SpecRewards) GrantIfUnlocked(self, reward);
+        public static void Apply(CharacterMaster master)
+        {
+            if (!NetworkServer.active || master == null || master.playerCharacterMasterController == null || master.inventory == null) return;
+            if (ServerProgressionState.Get(master) == null) return;
+            foreach (var reward in ClassRewards) GrantIfUnlocked(master, reward);
+            foreach (var reward in SpecRewards) GrantIfUnlocked(master, reward);
         }
 
         private static void GrantIfUnlocked(CharacterMaster master, RewardDef reward)
@@ -80,18 +74,15 @@ namespace PetrichorLegacy.Progression
 
         private static ItemDef ResolveItem(IEnumerable<string> candidates)
         {
-            if (candidates == null) return null;
-            var defs = ItemCatalog.allItemDefs;
-            if (defs == null) return null;
-
+            if (candidates == null || ItemCatalog.allItemDefs == null) return null;
             foreach (var candidate in candidates.Where(x => !string.IsNullOrWhiteSpace(x)))
             {
-                var exact = defs.FirstOrDefault(x => x != null && string.Equals(x.name, candidate, StringComparison.OrdinalIgnoreCase));
+                var exact = ItemCatalog.allItemDefs.FirstOrDefault(x => x != null && string.Equals(x.name, candidate, StringComparison.OrdinalIgnoreCase));
                 if (exact != null) return exact;
             }
             foreach (var candidate in candidates.Where(x => !string.IsNullOrWhiteSpace(x)))
             {
-                var partial = defs.FirstOrDefault(x => x != null && !string.IsNullOrEmpty(x.name) && x.name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0);
+                var partial = ItemCatalog.allItemDefs.FirstOrDefault(x => x != null && !string.IsNullOrEmpty(x.name) && x.name.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (partial != null) return partial;
             }
             return null;
