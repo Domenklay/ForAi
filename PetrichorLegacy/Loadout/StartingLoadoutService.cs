@@ -23,7 +23,7 @@ namespace PetrichorLegacy.Loadout
 
         public static bool IsEligible(ItemDef item, ProfileProgress profile)
         {
-            if (item == null || item.hidden) return false;
+            if (item == null || item.hidden || profile == null) return false;
             var name = item.name ?? string.Empty;
             if (name.IndexOf("Scrap", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("ArtifactKey", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -33,28 +33,21 @@ namespace PetrichorLegacy.Loadout
 
             var tierName = TierName(item);
             if (Contains(tierName, "Hex") || Contains(tierName, "Page")) return false;
-            if (Contains(tierName, "Hallowed") || Contains(tierName, "Cursed"))
-                return TalentCatalog.GetRank(profile, "expedition_hallowed") > 0;
-            if (Contains(tierName, "FoodTier"))
-                return TalentCatalog.GetRank(profile, "expedition_green") > 0;
+            if (Contains(tierName, "Hallowed") || Contains(tierName, "Cursed")) return profile.level >= 80;
+            if (Contains(tierName, "FoodTier")) return profile.level >= 15;
 
             switch (item.tier)
             {
-                case ItemTier.Tier1:
-                    return true;
-                case ItemTier.Tier2:
-                    return TalentCatalog.GetRank(profile, "expedition_green") > 0;
-                case ItemTier.Tier3:
-                    return TalentCatalog.GetRank(profile, "expedition_red") > 0;
-                case ItemTier.Boss:
-                case ItemTier.Lunar:
+                case ItemTier.Tier1: return true;
+                case ItemTier.Tier2: return profile.level >= 15;
+                case ItemTier.Boss: return profile.level >= 30;
                 case ItemTier.VoidTier1:
                 case ItemTier.VoidTier2:
                 case ItemTier.VoidTier3:
-                case ItemTier.VoidBoss:
-                    return TalentCatalog.GetRank(profile, "expedition_exotic") > 0;
-                default:
-                    return TalentCatalog.GetRank(profile, "expedition_hallowed") > 0;
+                case ItemTier.VoidBoss: return profile.level >= 35;
+                case ItemTier.Tier3: return profile.level >= 50;
+                case ItemTier.Lunar: return profile.level >= 60;
+                default: return profile.level >= 80;
             }
         }
 
@@ -62,22 +55,30 @@ namespace PetrichorLegacy.Loadout
         {
             if (item == null) return 99;
             var tierName = TierName(item);
-            if (Contains(tierName, "Hallowed") || Contains(tierName, "Cursed")) return 6;
-            if (Contains(tierName, "FoodTier")) return 2;
+            if (Contains(tierName, "Hallowed") || Contains(tierName, "Cursed")) return 12;
+            if (Contains(tierName, "FoodTier")) return 3;
 
             switch (item.tier)
             {
                 case ItemTier.Tier1: return 1;
-                case ItemTier.Tier2: return 2;
-                case ItemTier.Tier3: return 4;
-                case ItemTier.Boss: return 4;
-                case ItemTier.Lunar: return 4;
-                case ItemTier.VoidTier1: return 2;
-                case ItemTier.VoidTier2: return 3;
-                case ItemTier.VoidTier3: return 5;
-                case ItemTier.VoidBoss: return 5;
-                default: return 5;
+                case ItemTier.Tier2: return 3;
+                case ItemTier.Boss: return 5;
+                case ItemTier.VoidTier1:
+                case ItemTier.VoidTier2:
+                case ItemTier.VoidTier3:
+                case ItemTier.VoidBoss: return 6;
+                case ItemTier.Lunar: return 7;
+                case ItemTier.Tier3: return 10;
+                default: return 12;
             }
+        }
+
+        public static bool IsHighImpact(ItemDef item)
+        {
+            if (item == null) return false;
+            var tierName = TierName(item);
+            if (Contains(tierName, "Hallowed") || Contains(tierName, "Cursed")) return true;
+            return item.tier == ItemTier.Tier3 || item.tier == ItemTier.Lunar;
         }
 
         public static int CostOfCopy(ItemDef item, int alreadySelected)
@@ -107,12 +108,25 @@ namespace PetrichorLegacy.Loadout
                 return false;
             }
 
+            if (IsHighImpact(item))
+            {
+                var highImpactCount = profile.startingLoadout
+                    .Select(x => new { Record = x, Item = FindItem(x.itemName) })
+                    .Where(x => x.Item != null && IsHighImpact(x.Item))
+                    .Sum(x => Math.Max(0, x.Record.count));
+                if (highImpactCount >= 1)
+                {
+                    error = "В стартовом Арсенале может быть только один красный, Lunar или Hallowed-предмет суммарно.";
+                    return false;
+                }
+            }
+
             var record = profile.startingLoadout.FirstOrDefault(x => x.itemName == item.name);
             var count = record?.count ?? 0;
             var nextCost = CostOfCopy(item, count);
             if (UsedCapacity(profile) + nextCost > ProgressionService.StartingCapacity(profile))
             {
-                error = "Не хватает вместимости стартового набора.";
+                error = "Не хватает вместимости стартового Арсенала.";
                 return false;
             }
 
