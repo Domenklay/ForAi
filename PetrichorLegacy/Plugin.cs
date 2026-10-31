@@ -14,7 +14,7 @@ namespace PetrichorLegacy
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.1.1";
+        public const string PluginVersion = "0.1.2";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -36,7 +36,7 @@ namespace PetrichorLegacy
             _ui.Configure(_toggleKey);
 
             SaveService.RefreshProfile();
-            Logger.LogInfo($"{PluginName} Standalone {PluginVersion} loaded. Press M to open the progression window.");
+            Logger.LogInfo($"{PluginName} Compatibility {PluginVersion} loaded. Press M to open the progression window.");
         }
 
         private void OnDestroy()
