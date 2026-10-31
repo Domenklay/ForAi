@@ -77,7 +77,7 @@ namespace PetrichorLegacy.Progression
 
             profile.runsCompleted++;
             if (_won) profile.wins++;
-            ProgressionService.AwardXp(profile, xp);
+            ProgressionService.AwardXp(profile, xp, "Итог забега");
             PetrichorLegacyPlugin.Log.LogInfo($"Run XP: +{xp} (stages={stages}, bosses={_bossKills}, win={_won}, ending={_endingName})");
         }
 
