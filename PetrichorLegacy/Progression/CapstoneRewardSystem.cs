@@ -68,13 +68,13 @@ namespace PetrichorLegacy.Progression
                     PetrichorLegacyPlugin.Log?.LogWarning($"Capstone reward item not found for {reward.TalentId}: {reward.DisplayName}.");
                 return;
             }
-            if (master.inventory.GetItemCount(item.itemIndex) <= 0)
-                master.inventory.GiveItem(item.itemIndex, 1);
+            if (master.inventory.GetItemCountPermanent(item.itemIndex) <= 0)
+                master.inventory.GiveItemPermanent(item.itemIndex, 1);
         }
 
         private static ItemDef ResolveItem(IEnumerable<string> candidates)
         {
-            if (candidates == null || ItemCatalog.allItemDefs == null) return null;
+            if (candidates == null) return null;
             foreach (var candidate in candidates.Where(x => !string.IsNullOrWhiteSpace(x)))
             {
                 var exact = ItemCatalog.allItemDefs.FirstOrDefault(x => x != null && string.Equals(x.name, candidate, StringComparison.OrdinalIgnoreCase));
