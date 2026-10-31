@@ -1,5 +1,4 @@
 using System;
-using R2API;
 using RoR2;
 using UnityEngine;
 using PetrichorLegacy.Persistence;
@@ -48,7 +47,7 @@ namespace PetrichorLegacy.Progression
         private static void Run_BeginGameOver(On.RoR2.Run.orig_BeginGameOver orig, Run self, GameEndingDef ending)
         {
             _won = ending != null && ending.isWin;
-            _endingName = ending != null ? ending.name : "Unknown";
+            _endingName = ending != null ? ending.cachedName : "Unknown";
             AwardIfNeeded(self);
             orig(self, ending);
         }
@@ -78,7 +77,7 @@ namespace PetrichorLegacy.Progression
 
             profile.runsCompleted++;
             if (_won) profile.wins++;
-            ProgressionService.AwardXp(profile, xp);
+            ProgressionService.AwardXp(profile, xp, "Итог забега");
             PetrichorLegacyPlugin.Log.LogInfo($"Run XP: +{xp} (stages={stages}, bosses={_bossKills}, win={_won}, ending={_endingName})");
         }
 
