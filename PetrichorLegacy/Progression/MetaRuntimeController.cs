@@ -8,6 +8,7 @@ namespace PetrichorLegacy.Progression
         private CharacterBody _body;
         private bool _lastLowHealth;
         private bool _lastHunterHaste;
+        private bool _lastPursuit;
         private float _nextCheck;
 
         public void Initialize(CharacterBody body)
@@ -29,11 +30,13 @@ namespace PetrichorLegacy.Progression
             var low = _body.healthComponent != null && _body.healthComponent.combinedHealthFraction < 0.30f;
             var progress = ServerProgressionState.Get(_body.master);
             var haste = progress != null && progress.HunterHasteUntil > Time.fixedTime;
+            var pursuit = progress != null && progress.PursuitUntil > Time.fixedTime;
 
-            if (force || low != _lastLowHealth || haste != _lastHunterHaste)
+            if (force || low != _lastLowHealth || haste != _lastHunterHaste || pursuit != _lastPursuit)
             {
                 _lastLowHealth = low;
                 _lastHunterHaste = haste;
+                _lastPursuit = pursuit;
                 _body.RecalculateStats();
             }
         }
