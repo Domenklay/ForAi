@@ -1,7 +1,7 @@
 {
   "name": "PetrichorLegacy",
-  "version_number": "0.2.0",
+  "version_number": "0.3.0",
   "website_url": "",
-  "description": "Risk of Rain 2 1.5.0 meta progression: realtime XP HUD, branching talent tree, starting-item loadouts and level-scaled monster rarities. No R2API required; Newtonsoft.Json runtime included.",
+  "description": "Infinite meta progression for Risk of Rain 2 1.5.0: classes/specs, endless diminishing mastery, perfection/prestige, realtime XP HUD, Arsenal and safe-item monster rarities. No R2API required; Newtonsoft.Json runtime included.",
   "dependencies": []
 }
