@@ -14,12 +14,12 @@ namespace PetrichorLegacy
     {
         public const string PluginGuid = "com.petrichorlegacy.metaprogression";
         public const string PluginName = "Petrichor Legacy";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.3.1";
 
         public static PetrichorLegacyPlugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
 
-        private MetaProgressionUI _ui;
+        private MetaProgressionUIV2 _ui;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
 
         private void Awake()
@@ -34,7 +34,7 @@ namespace PetrichorLegacy
             PerfectionRuntimeEffects.Install();
             MonsterRaritySystem.Install();
 
-            _ui = gameObject.AddComponent<MetaProgressionUI>();
+            _ui = gameObject.AddComponent<MetaProgressionUIV2>();
             _ui.Configure(_toggleKey);
 
             SaveService.RefreshProfile();
