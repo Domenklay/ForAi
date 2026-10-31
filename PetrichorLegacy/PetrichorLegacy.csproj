@@ -6,7 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>PetrichorLegacy</AssemblyName>
     <RootNamespace>PetrichorLegacy</RootNamespace>
-    <Version>0.3.2</Version>
+    <Version>0.3.3</Version>
     <RestoreAdditionalProjectSources>https://api.nuget.org/v3/index.json;https://nuget.bepinex.dev/v3/index.json</RestoreAdditionalProjectSources>
   </PropertyGroup>
 
