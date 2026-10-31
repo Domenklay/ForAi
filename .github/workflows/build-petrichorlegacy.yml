@@ -1,4 +1,4 @@
-name: Build PetrichorLegacy Compatibility
+name: Build PetrichorLegacy Progression
 
 on:
   push:
@@ -27,12 +27,12 @@ jobs:
           cp PetrichorLegacy/manifest.json package/PetrichorLegacy/
           cp "$HOME/.nuget/packages/newtonsoft.json/12.0.3/lib/net45/Newtonsoft.Json.dll" package/PetrichorLegacy/
           cd package
-          zip -r ../PetrichorLegacy-0.1.2-compat.zip PetrichorLegacy
+          zip -r ../PetrichorLegacy-0.2.0.zip PetrichorLegacy
       - uses: actions/upload-artifact@v4
         with:
-          name: PetrichorLegacy-0.1.2-compat
+          name: PetrichorLegacy-0.2.0
           path: |
-            PetrichorLegacy-0.1.2-compat.zip
+            PetrichorLegacy-0.2.0.zip
             package/PetrichorLegacy/PetrichorLegacy.dll
             package/PetrichorLegacy/Newtonsoft.Json.dll
           if-no-files-found: error
