@@ -13,7 +13,7 @@ namespace PetrichorLegacy.Persistence
         private static string _currentProfileKey;
         public static ProfileProgress Current { get; private set; } = new ProfileProgress();
 
-        private static string SaveDirectory => Path.Combine(Paths.ConfigPath, "PetrichorLegacy");
+        private static string SaveDirectory => System.IO.Path.Combine(Paths.ConfigPath, "PetrichorLegacy");
 
         public static bool RefreshProfile()
         {
@@ -29,7 +29,7 @@ namespace PetrichorLegacy.Persistence
             return true;
         }
 
-        private static string CurrentPath => Path.Combine(SaveDirectory, (_currentProfileKey ?? "default") + ".json");
+        private static string CurrentPath => System.IO.Path.Combine(SaveDirectory, (_currentProfileKey ?? "default") + ".json");
 
         public static void LoadCurrent()
         {
@@ -86,8 +86,6 @@ namespace PetrichorLegacy.Persistence
 
             if (p.schemaVersion < 3)
             {
-                // Old 0.1/0.2 talent ids are not compatible with the class tree. Refund their spent points
-                // and ensure the account owns at least the rewards it should have for its current level.
                 var oldSpent = 0;
                 foreach (var record in p.talents)
                 {
@@ -112,7 +110,7 @@ namespace PetrichorLegacy.Persistence
 
         private static string Sanitize(string value)
         {
-            foreach (var c in Path.GetInvalidFileNameChars()) value = value.Replace(c, '_');
+            foreach (var c in System.IO.Path.GetInvalidFileNameChars()) value = value.Replace(c, '_');
             return value;
         }
     }
