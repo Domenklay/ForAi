@@ -1,7 +1,7 @@
 {
   "name": "PetrichorLegacy",
-  "version_number": "0.4.0",
+  "version_number": "0.4.1",
   "website_url": "",
-  "description": "Infinite meta progression for Risk of Rain 2 1.5.0 with three specializations per class, class Void capstones, specialization legendary rewards, scrollable talent trees, endless mastery, perfection/prestige, icon Arsenal and rare-monster progression.",
+  "description": "Infinite meta progression for Risk of Rain 2 1.5.0 with persistent Arsenal selections, larger scrollable talent nodes, varied talent icons, three specializations per class, Void class capstones and legendary specialization rewards.",
   "dependencies": []
 }
