@@ -1,7 +1,7 @@
 {
   "name": "PetrichorLegacy",
-  "version_number": "0.1.2",
+  "version_number": "0.2.0",
   "website_url": "",
-  "description": "Compatibility build for Risk of Rain 2 1.5.0: persistent XP, Lost Castle-style talent tree and starting-item loadouts. No R2API required; Newtonsoft.Json runtime included.",
+  "description": "Risk of Rain 2 1.5.0 meta progression: realtime XP HUD, branching talent tree, starting-item loadouts and level-scaled monster rarities. No R2API required; Newtonsoft.Json runtime included.",
   "dependencies": []
 }
