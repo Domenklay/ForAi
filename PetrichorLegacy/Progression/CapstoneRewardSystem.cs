@@ -68,8 +68,8 @@ namespace PetrichorLegacy.Progression
                     PetrichorLegacyPlugin.Log?.LogWarning($"Capstone reward item not found for {reward.TalentId}: {reward.DisplayName}.");
                 return;
             }
-            if (master.inventory.GetItemCount(item) <= 0)
-                master.inventory.GiveItem(item, 1);
+            if (master.inventory.GetItemCount(item.itemIndex) <= 0)
+                master.inventory.GiveItem(item.itemIndex, 1);
         }
 
         private static ItemDef ResolveItem(IEnumerable<string> candidates)
