@@ -24,7 +24,6 @@ namespace PetrichorLegacy.Progression
         public static void AwardXp(ProfileProgress profile, int amount, string reason = null)
         {
             if (profile == null || amount <= 0) return;
-
             profile.currentXp += amount;
             profile.lifetimeXp += amount;
             LastAwardAmount = amount;
@@ -37,7 +36,6 @@ namespace PetrichorLegacy.Progression
                 profile.level++;
                 GrantLevelRewards(profile, profile.level);
             }
-
             SaveService.SaveCurrent();
         }
 
@@ -162,10 +160,10 @@ namespace PetrichorLegacy.Progression
             if (string.IsNullOrEmpty(specId)) return true;
             switch (classId)
             {
-                case "Guardian": return specId == "Bastion" || specId == "Unbroken";
-                case "Slayer": return specId == "Executioner" || specId == "Hunter";
-                case "Pathfinder": return specId == "Scout" || specId == "Acrobat";
-                case "Seeker": return specId == "Merchant" || specId == "Prospector";
+                case "Guardian": return specId == "Bastion" || specId == "Unbroken" || specId == "Vanguard";
+                case "Slayer": return specId == "Executioner" || specId == "Hunter" || specId == "Berserker";
+                case "Pathfinder": return specId == "Scout" || specId == "Acrobat" || specId == "Saboteur";
+                case "Seeker": return specId == "Merchant" || specId == "Prospector" || specId == "RelicKeeper";
                 default: return false;
             }
         }
