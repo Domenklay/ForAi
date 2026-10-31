@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BepInEx.Configuration;
 using PetrichorLegacy.Loadout;
+using PetrichorLegacy.Models;
 using PetrichorLegacy.Persistence;
 using PetrichorLegacy.Progression;
 using RoR2;
@@ -12,58 +13,98 @@ namespace PetrichorLegacy.UI
 {
     public sealed class MetaProgressionUI : MonoBehaviour
     {
-        private Rect _window = new Rect(80, 60, 1500, 850);
+        private Rect _window = new Rect(60, 45, 1520, 900);
         private bool _open;
         private int _tab;
-        private TalentBranch _selectedBranch = TalentBranch.Survival;
+        private TalentBranch _selectedBranch = TalentBranch.Legacy;
         private Vector2 _itemScroll;
         private Vector2 _selectedScroll;
-        private string _search = "";
-        private string _status = "";
+        private Vector2 _masteryScroll;
+        private Vector2 _perfectionScroll;
+        private string _search = string.Empty;
+        private string _status = string.Empty;
         private float _statusUntil;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
 
-        private GUIStyle _hudLabel;
-        private GUIStyle _hudAward;
+        private bool _cursorCaptured;
+        private bool _previousCursorVisible;
+        private CursorLockMode _previousCursorLock;
+
+        private GUIStyle _windowStyle;
         private GUIStyle _header;
+        private GUIStyle _small;
         private GUIStyle _nodeTitle;
         private GUIStyle _nodeDesc;
-        private GUIStyle _centerLabel;
+        private GUIStyle _center;
+        private GUIStyle _hud;
+        private Texture2D _windowTexture;
 
-        public void Configure(ConfigEntry<KeyboardShortcut> toggleKey)
-        {
-            _toggleKey = toggleKey;
-        }
+        public void Configure(ConfigEntry<KeyboardShortcut> toggleKey) => _toggleKey = toggleKey;
 
         private void Update()
         {
             SaveService.RefreshProfile();
             if (_toggleKey != null && _toggleKey.Value.IsDown())
+                SetOpen(!_open);
+
+            if (_open)
             {
-                _open = !_open;
-                PetrichorLegacyPlugin.Log?.LogInfo($"Meta progression UI toggled: {(_open ? "OPEN" : "CLOSED")}");
+                // RoR2 can relock the pointer every frame. Force the native cursor above IMGUI while this window is open.
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
             }
+        }
+
+        private void OnDestroy()
+        {
+            RestoreCursor();
+            if (_windowTexture != null) Destroy(_windowTexture);
+        }
+
+        private void SetOpen(bool open)
+        {
+            if (_open == open) return;
+            _open = open;
+            if (open)
+            {
+                if (!_cursorCaptured)
+                {
+                    _previousCursorVisible = Cursor.visible;
+                    _previousCursorLock = Cursor.lockState;
+                    _cursorCaptured = true;
+                }
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
+            else
+            {
+                RestoreCursor();
+            }
+            PetrichorLegacyPlugin.Log?.LogInfo($"Meta progression UI toggled: {(open ? "OPEN" : "CLOSED")}");
+        }
+
+        private void RestoreCursor()
+        {
+            if (!_cursorCaptured) return;
+            Cursor.visible = _previousCursorVisible;
+            Cursor.lockState = _previousCursorLock;
+            _cursorCaptured = false;
         }
 
         private void OnGUI()
         {
             EnsureStyles();
-
             if (Run.instance != null && SaveService.Current != null)
                 DrawXpHud();
-
             if (!_open || SaveService.Current == null) return;
 
-            var maxWidth = Mathf.Max(760f, Screen.width - 40f);
-            var maxHeight = Mathf.Max(520f, Screen.height - 40f);
-            _window.width = Mathf.Min(1500f, maxWidth);
-            _window.height = Mathf.Min(850f, maxHeight);
+            _window.width = Mathf.Min(1520f, Mathf.Max(900f, Screen.width - 40f));
+            _window.height = Mathf.Min(900f, Mathf.Max(600f, Screen.height - 40f));
             _window.x = Mathf.Clamp(_window.x, 0f, Mathf.Max(0f, Screen.width - _window.width));
             _window.y = Mathf.Clamp(_window.y, 0f, Mathf.Max(0f, Screen.height - _window.height));
 
-            FillRect(_window, new Color(0.035f, 0.045f, 0.055f, 1f));
-            DrawBorder(_window, new Color(0.30f, 0.38f, 0.44f, 1f), 2f);
-            _window = GUI.Window(941204, _window, DrawWindow, "PETRICHOR LEGACY — META PROGRESSION");
+            _window = GUI.Window(941204, _window, DrawWindow, "PETRICHOR LEGACY — META PROGRESSION", _windowStyle);
+            GUI.BringWindowToFront(941204);
         }
 
         private void DrawXpHud()
@@ -71,150 +112,366 @@ namespace PetrichorLegacy.UI
             var p = SaveService.Current;
             var required = Mathf.Max(1, ProgressionService.XpRequiredForNextLevel(p.level));
             var fraction = Mathf.Clamp01((float)p.currentXp / required);
-            var width = Mathf.Clamp(Screen.width * 0.38f, 380f, 720f);
-            var outer = new Rect((Screen.width - width) * 0.5f, 16f, width, 38f);
-            var inner = new Rect(outer.x + 3f, outer.y + 3f, outer.width - 6f, outer.height - 6f);
-
-            FillRect(outer, new Color(0.02f, 0.025f, 0.03f, 0.98f));
-            FillRect(new Rect(inner.x, inner.y, inner.width * fraction, inner.height), new Color(0.18f, 0.58f, 0.72f, 1f));
-            DrawBorder(outer, new Color(0.55f, 0.72f, 0.80f, 1f), 2f);
-            GUI.Label(outer, $"УРОВЕНЬ {p.level}     XP {p.currentXp} / {required}", _hudLabel);
+            var width = Mathf.Clamp(Screen.width * 0.42f, 430f, 760f);
+            var outer = new Rect((Screen.width - width) * 0.5f, 15f, width, 42f);
+            FillRect(outer, new Color(0.015f, 0.02f, 0.025f, 0.98f));
+            var inner = new Rect(outer.x + 4f, outer.y + 4f, outer.width - 8f, outer.height - 8f);
+            FillRect(new Rect(inner.x, inner.y, inner.width * fraction, inner.height), new Color(0.10f, 0.48f, 0.68f, 1f));
+            DrawBorder(outer, new Color(0.58f, 0.74f, 0.82f, 1f), 2f);
+            GUI.Label(outer, $"УРОВЕНЬ {p.level}   •   ПРЕСТИЖ {ProgressionService.PrestigeLevel(p.level)}   •   XP {p.currentXp:N0} / {required:N0}", _hud);
 
             var elapsed = Time.unscaledTime - ProgressionService.LastAwardTime;
             if (elapsed >= 0f && elapsed < 3.5f && ProgressionService.LastAwardAmount > 0)
-            {
-                var awardRect = new Rect(outer.x, outer.y + outer.height + 2f, outer.width, 24f);
-                GUI.Label(awardRect, $"+{ProgressionService.LastAwardAmount} XP — {ProgressionService.LastAwardReason}", _hudAward);
-            }
+                GUI.Label(new Rect(outer.x, outer.yMax + 2f, outer.width, 24f), $"+{ProgressionService.LastAwardAmount:N0} XP — {ProgressionService.LastAwardReason}", _center);
         }
 
         private void DrawWindow(int id)
         {
             var p = SaveService.Current;
-
-            GUI.Label(new Rect(14f, 25f, _window.width - 28f, 24f),
-                $"Уровень {p.level}    XP {p.currentXp}/{ProgressionService.XpRequiredForNextLevel(p.level)}    Очки талантов: {p.unspentTalentPoints}    Забеги: {p.runsCompleted}    Победы: {p.wins}",
+            GUI.Label(new Rect(18f, 28f, _window.width - 36f, 28f),
+                $"Ур. {p.level}   Престиж {ProgressionService.PrestigeLevel(p.level)}   |   Очки: {p.unspentTalentPoints} талантов • {p.unspentMasteryPoints} мастерства • {p.unspentPerfectionPoints} совершенства   |   Активно: {ClassDisplay(p.activeClass)} / {SpecDisplay(p.activeSpecialization)}",
                 _header);
 
-            var tabY = 53f;
-            var left = 12f;
-            var tabWidth = Mathf.Max(180f, (_window.width - 380f) * 0.5f);
-            if (GUI.Toggle(new Rect(left, tabY, tabWidth, 34f), _tab == 0, "ТАЛАНТЫ", "Button")) _tab = 0;
-            if (GUI.Toggle(new Rect(left + tabWidth + 6f, tabY, tabWidth, 34f), _tab == 1, "СТАРТОВЫЙ НАБОР", "Button")) _tab = 1;
+            var tabY = 62f;
+            var labels = new[] { "ДРЕВО", "МАСТЕРСТВО", "СОВЕРШЕНСТВО", "АРСЕНАЛ" };
+            var tabWidth = (_window.width - 190f) / labels.Length;
+            for (var i = 0; i < labels.Length; i++)
+                if (GUI.Toggle(new Rect(14f + i * tabWidth, tabY, tabWidth - 5f, 34f), _tab == i, labels[i], "Button")) _tab = i;
+            if (GUI.Button(new Rect(_window.width - 165f, tabY, 150f, 34f), "Закрыть")) SetOpen(false);
 
-            if (GUI.Button(new Rect(_window.width - 350f, tabY, 190f, 34f), "Сбросить таланты"))
+            var content = new Rect(14f, 104f, _window.width - 28f, _window.height - 137f);
+            FillRect(content, new Color(0.028f, 0.035f, 0.042f, 1f));
+            DrawBorder(content, new Color(0.18f, 0.25f, 0.29f, 1f), 1f);
+
+            switch (_tab)
             {
-                ProgressionService.Respec(p);
-                SetStatus("Таланты сброшены; стартовый набор очищен.");
+                case 0: DrawTalentPage(p, content); break;
+                case 1: DrawMasteryPage(p, content); break;
+                case 2: DrawPerfectionPage(p, content); break;
+                default: DrawLoadoutArea(p, content); break;
             }
-
-            if (GUI.Button(new Rect(_window.width - 150f, tabY, 138f, 34f), "Закрыть"))
-                _open = false;
-
-            var content = new Rect(12f, 95f, _window.width - 24f, _window.height - 125f);
-            FillRect(content, new Color(0.055f, 0.068f, 0.078f, 1f));
-            DrawBorder(content, new Color(0.18f, 0.24f, 0.28f, 1f), 1f);
-
-            if (_tab == 0)
-                DrawTalents(p, content);
-            else
-                DrawLoadoutArea(p, content);
 
             if (!string.IsNullOrEmpty(_status) && Time.unscaledTime < _statusUntil)
-                GUI.Label(new Rect(20f, _window.height - 27f, _window.width - 40f, 22f), _status, _centerLabel);
+                GUI.Label(new Rect(20f, _window.height - 29f, _window.width - 40f, 22f), _status, _center);
 
-            GUI.DragWindow(new Rect(0, 0, _window.width, 23f));
+            GUI.DragWindow(new Rect(0, 0, _window.width, 25f));
         }
 
-        private void DrawTalents(Models.ProfileProgress profile, Rect area)
+        private void DrawTalentPage(ProfileProgress p, Rect area)
         {
-            var branches = new[]
+            var topY = area.y + 8f;
+            var categories = new[]
             {
-                TalentBranch.Survival,
-                TalentBranch.Offense,
-                TalentBranch.Mobility,
-                TalentBranch.Fortune,
-                TalentBranch.Expedition
+                TalentBranch.Legacy, TalentBranch.Guardian, TalentBranch.Slayer, TalentBranch.Pathfinder, TalentBranch.Seeker
             };
-
-            var branchWidth = (area.width - 12f) / branches.Length;
-            for (var i = 0; i < branches.Length; i++)
+            var w = (area.width - 16f) / categories.Length;
+            for (var i = 0; i < categories.Length; i++)
             {
-                var branch = branches[i];
-                var rect = new Rect(area.x + 4f + i * branchWidth, area.y + 5f, branchWidth - 4f, 34f);
-                if (GUI.Toggle(rect, _selectedBranch == branch, BranchTitle(branch), "Button"))
-                    _selectedBranch = branch;
+                var b = categories[i];
+                var selected = SameCategory(_selectedBranch, b);
+                if (GUI.Toggle(new Rect(area.x + 8f + i * w, topY, w - 5f, 32f), selected, BranchTitle(b), "Button"))
+                    _selectedBranch = b;
             }
 
-            var canvas = new Rect(area.x + 8f, area.y + 48f, area.width - 16f, area.height - 56f);
-            FillRect(canvas, new Color(0.028f, 0.035f, 0.042f, 1f));
-            DrawBorder(canvas, new Color(0.16f, 0.22f, 0.26f, 1f), 1f);
+            var secondY = topY + 38f;
+            if (_selectedBranch != TalentBranch.Legacy)
+                DrawClassAndSpecControls(p, area, secondY);
 
-            var defs = TalentCatalog.All.Where(t => t.Branch == _selectedBranch).ToList();
+            var canvasY = _selectedBranch == TalentBranch.Legacy ? secondY : secondY + 40f;
+            var canvas = new Rect(area.x + 8f, canvasY, area.width - 16f, area.yMax - canvasY - 8f);
+            FillRect(canvas, new Color(0.018f, 0.023f, 0.028f, 1f));
+            DrawBorder(canvas, new Color(0.14f, 0.20f, 0.24f, 1f), 1f);
+            DrawBranchTree(p, _selectedBranch, canvas);
+
+            if (GUI.Button(new Rect(area.xMax - 190f, area.y + 48f, 170f, 28f), "Сбросить обычные таланты"))
+            {
+                ProgressionService.Respec(p);
+                SetStatus("Обычные таланты сброшены. Мастерство и Совершенство сохранены.");
+            }
+        }
+
+        private void DrawClassAndSpecControls(ProfileProgress p, Rect area, float y)
+        {
+            var classId = TalentCatalog.ClassForBranch(_selectedBranch);
+            var baseBranch = BaseBranchForClass(classId);
+            var spec1 = FirstSpecBranch(classId);
+            var spec2 = SecondSpecBranch(classId);
+            var left = area.x + 12f;
+
+            if (GUI.Toggle(new Rect(left, y, 180f, 31f), _selectedBranch == baseBranch, "ОСНОВА", "Button")) _selectedBranch = baseBranch;
+            if (GUI.Toggle(new Rect(left + 185f, y, 180f, 31f), _selectedBranch == spec1, BranchTitle(spec1), "Button")) _selectedBranch = spec1;
+            if (GUI.Toggle(new Rect(left + 370f, y, 180f, 31f), _selectedBranch == spec2, BranchTitle(spec2), "Button")) _selectedBranch = spec2;
+
+            var activeClass = p.activeClass == classId;
+            if (GUI.Button(new Rect(area.xMax - 430f, y, 200f, 31f), activeClass ? "КЛАСС АКТИВЕН" : "Сделать класс активным"))
+            {
+                if (!ProgressionService.TrySetActiveClass(p, classId, out var error)) SetStatus(error);
+                else SetStatus($"Активный класс: {ClassDisplay(classId)}.");
+            }
+
+            var specId = TalentCatalog.SpecForBranch(_selectedBranch);
+            GUI.enabled = activeClass && !string.IsNullOrEmpty(specId);
+            if (GUI.Button(new Rect(area.xMax - 220f, y, 200f, 31f), p.activeSpecialization == specId && !string.IsNullOrEmpty(specId) ? "СПЕК АКТИВЕН" : "Активировать специализацию"))
+            {
+                if (!ProgressionService.TrySetActiveSpecialization(p, specId, out var error)) SetStatus(error);
+                else SetStatus($"Активная специализация: {SpecDisplay(specId)}.");
+            }
+            GUI.enabled = true;
+        }
+
+        private void DrawBranchTree(ProfileProgress p, TalentBranch branch, Rect canvas)
+        {
+            var defs = TalentCatalog.All.Where(x => x.Branch == branch).ToList();
+            if (defs.Count == 0) return;
 
             foreach (var def in defs)
             {
                 if (string.IsNullOrEmpty(def.PrerequisiteId)) continue;
                 var parent = TalentCatalog.Find(def.PrerequisiteId);
-                if (parent == null || parent.Branch != _selectedBranch) continue;
-
-                var parentRect = GetNodeRect(parent, canvas);
-                var childRect = GetNodeRect(def, canvas);
-                var active = TalentCatalog.GetRank(profile, parent.Id) >= def.PrerequisiteRank;
-                DrawConnection(parentRect, childRect,
-                    active ? new Color(0.22f, 0.63f, 0.74f, 1f) : new Color(0.20f, 0.23f, 0.25f, 1f));
+                if (parent == null || parent.Branch != branch) continue;
+                var active = TalentCatalog.GetRank(p, parent.Id) >= def.PrerequisiteRank;
+                DrawConnection(GetNodeRect(parent, canvas), GetNodeRect(def, canvas), active ? new Color(0.20f, 0.65f, 0.72f, 1f) : new Color(0.18f, 0.20f, 0.22f, 1f));
             }
-
-            foreach (var def in defs)
-                DrawTalentNode(profile, def, GetNodeRect(def, canvas));
+            foreach (var def in defs) DrawTalentNode(p, def, GetNodeRect(def, canvas));
         }
 
-        private void DrawTalentNode(Models.ProfileProgress profile, TalentDef def, Rect rect)
+        private void DrawTalentNode(ProfileProgress p, TalentDef def, Rect rect)
         {
-            var rank = TalentCatalog.GetRank(profile, def.Id);
-            var prereq = TalentCatalog.PrerequisiteMet(profile, def);
+            var rank = TalentCatalog.GetRank(p, def.Id);
+            var prereq = TalentCatalog.PrerequisiteMet(p, def);
+            var levelOk = p.level >= def.UnlockLevel;
             var maxed = rank >= def.MaxRank;
-            var affordable = profile.unspentTalentPoints >= def.PointCost;
+            var isActiveBranch = TalentCatalog.IsBranchActive(p, def.Branch);
 
-            var fill = maxed
-                ? new Color(0.10f, 0.25f, 0.22f, 1f)
-                : prereq
-                    ? new Color(0.10f, 0.16f, 0.20f, 1f)
-                    : new Color(0.075f, 0.08f, 0.085f, 1f);
-
+            var fill = maxed ? new Color(0.07f, 0.22f, 0.18f, 1f) : isActiveBranch ? new Color(0.08f, 0.15f, 0.18f, 1f) : new Color(0.065f, 0.075f, 0.082f, 1f);
             FillRect(rect, fill);
-            DrawBorder(rect, maxed ? new Color(0.30f, 0.75f, 0.58f, 1f) : new Color(0.28f, 0.37f, 0.42f, 1f), 2f);
+            DrawBorder(rect, maxed ? new Color(0.25f, 0.72f, 0.52f, 1f) : isActiveBranch ? new Color(0.22f, 0.55f, 0.65f, 1f) : new Color(0.24f, 0.30f, 0.33f, 1f), 2f);
+            GUI.Label(new Rect(rect.x + 8f, rect.y + 6f, rect.width - 16f, 23f), $"{def.Name} [{rank}/{def.MaxRank}]", _nodeTitle);
+            GUI.Label(new Rect(rect.x + 8f, rect.y + 29f, rect.width - 16f, 48f), def.Description, _nodeDesc);
 
-            GUI.Label(new Rect(rect.x + 8f, rect.y + 6f, rect.width - 16f, 24f), $"{def.Name}   [{rank}/{def.MaxRank}]", _nodeTitle);
-            GUI.Label(new Rect(rect.x + 8f, rect.y + 29f, rect.width - 16f, 45f), def.Description, _nodeDesc);
+            if (!levelOk)
+                GUI.Label(new Rect(rect.x + 8f, rect.yMax - 51f, rect.width - 16f, 18f), $"Откроется на ур. {def.UnlockLevel}", _small);
+            else if (!prereq)
+                GUI.Label(new Rect(rect.x + 8f, rect.yMax - 51f, rect.width - 16f, 18f), "Нужен предыдущий узел", _small);
 
-            var button = new Rect(rect.x + 8f, rect.yMax - 29f, rect.width - 16f, 23f);
-            GUI.enabled = prereq && !maxed && affordable;
-            var buttonText = maxed ? "Изучено" : def.PointCost == 1 ? "Изучить — 1 очко" : $"Изучить — {def.PointCost} очка";
-            if (GUI.Button(button, buttonText) && !maxed)
+            GUI.enabled = levelOk && prereq && !maxed && p.unspentTalentPoints >= def.PointCost;
+            if (GUI.Button(new Rect(rect.x + 8f, rect.yMax - 29f, rect.width - 16f, 23f), maxed ? "Изучено" : $"Изучить — {def.PointCost}"))
             {
-                if (!ProgressionService.TryBuyTalent(profile, def.Id, out var error)) SetStatus(error);
+                if (!ProgressionService.TryBuyTalent(p, def.Id, out var error)) SetStatus(error);
                 else SetStatus($"Изучено: {def.Name}.");
             }
             GUI.enabled = true;
+        }
 
-            if (!prereq && !string.IsNullOrEmpty(def.PrerequisiteId))
+        private void DrawMasteryPage(ProfileProgress p, Rect area)
+        {
+            GUILayout.BeginArea(new Rect(area.x + 12f, area.y + 12f, area.width - 24f, area.height - 24f));
+            GUILayout.Label($"БЕСКОНЕЧНОЕ МАСТЕРСТВО   •   доступно очков: {p.unspentMasteryPoints}", _header);
+            GUILayout.Label("Открывается с 41 уровня. После рангов 25 / 50 / 100 / 200 эффективность новых рангов снижается до 75% / 50% / 30% / 20%. Купленные мастерства других классов сохраняются, но работают только у активного класса.", _small);
+            GUILayout.Space(8);
+
+            if (p.level < 41)
             {
-                var parent = TalentCatalog.Find(def.PrerequisiteId);
-                var requirement = parent != null ? $"Нужно: {parent.Name} {def.PrerequisiteRank}" : "Нужен предыдущий узел";
-                GUI.Label(new Rect(rect.x + 8f, rect.yMax - 50f, rect.width - 16f, 18f), requirement, _nodeDesc);
+                GUILayout.Label("Мастерство ещё закрыто.", _center);
+                GUILayout.EndArea();
+                return;
             }
+            if (string.IsNullOrEmpty(p.activeClass))
+            {
+                GUILayout.Label("Сначала выбери активный класс во вкладке Древо.", _center);
+                GUILayout.EndArea();
+                return;
+            }
+
+            _masteryScroll = GUILayout.BeginScrollView(_masteryScroll);
+            foreach (var def in MasteryCatalog.All.Where(x => x.ClassId == p.activeClass))
+            {
+                var rank = MasteryCatalog.GetRank(p, def.Id);
+                var effective = MasteryCatalog.EffectiveRanks(rank);
+                GUILayout.BeginVertical("box");
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{def.Name} — ранг {rank}", _nodeTitle, GUILayout.Width(290));
+                GUILayout.Label($"Эффективных рангов: {effective:0.##}", GUILayout.Width(220));
+                GUILayout.FlexibleSpace();
+                GUI.enabled = p.unspentMasteryPoints > 0;
+                if (GUILayout.Button("+1 ранг", GUILayout.Width(120)))
+                {
+                    if (!ProgressionService.TryBuyMastery(p, def.Id, out var error)) SetStatus(error);
+                    else SetStatus($"Мастерство повышено: {def.Name}.");
+                }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+                GUILayout.Label(def.Description, _nodeDesc);
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
+        }
+
+        private void DrawPerfectionPage(ProfileProgress p, Rect area)
+        {
+            GUILayout.BeginArea(new Rect(area.x + 12f, area.y + 12f, area.width - 24f, area.height - 24f));
+            GUILayout.Label($"СОВЕРШЕНСТВО   •   1 очко каждые 25 уровней   •   доступно: {p.unspentPerfectionPoints}", _header);
+            GUILayout.Label("Престиж не сбрасывает уровень. Каждые 100 уровней он открывает следующий слой долгой прогрессии.", _small);
+            GUILayout.Space(8);
+            _perfectionScroll = GUILayout.BeginScrollView(_perfectionScroll);
+            foreach (var def in PerfectionCatalog.All)
+            {
+                var rank = PerfectionCatalog.GetRank(p, def.Id);
+                GUILayout.BeginHorizontal("box");
+                GUILayout.BeginVertical();
+                GUILayout.Label($"{def.Name} [{rank}/{def.MaxRank}] — требуется ур. {def.UnlockLevel}", _nodeTitle);
+                GUILayout.Label(def.Description, _nodeDesc);
+                GUILayout.EndVertical();
+                GUI.enabled = p.level >= def.UnlockLevel && rank < def.MaxRank && p.unspentPerfectionPoints > 0;
+                if (GUILayout.Button(rank >= def.MaxRank ? "Изучено" : "Изучить", GUILayout.Width(130), GUILayout.Height(42)))
+                {
+                    if (!ProgressionService.TryBuyPerfection(p, def.Id, out var error)) SetStatus(error);
+                    else SetStatus($"Совершенство изучено: {def.Name}.");
+                }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
+        }
+
+        private void DrawLoadoutArea(ProfileProgress p, Rect area)
+        {
+            GUILayout.BeginArea(new Rect(area.x + 10f, area.y + 10f, area.width - 20f, area.height - 20f));
+            var capacity = ProgressionService.StartingCapacity(p);
+            var used = StartingLoadoutService.UsedCapacity(p);
+            GUILayout.Label($"АРСЕНАЛ — вместимость {used}/{capacity}", _header);
+            GUILayout.Label("Открытия по мета-уровню: зелёные 15 • Boss 30 • Void 35 • красные 50 • Lunar 60 • Hallowed 80. Красный/Lunar/Hallowed — максимум один такой предмет суммарно.", _small);
+            GUILayout.Space(6);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical("box", GUILayout.Width(Mathf.Min(900f, area.width * 0.64f)));
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Поиск:", GUILayout.Width(60));
+            _search = GUILayout.TextField(_search ?? string.Empty);
+            GUILayout.EndHorizontal();
+            _itemScroll = GUILayout.BeginScrollView(_itemScroll);
+            var userProfile = LocalUserManager.GetFirstLocalUser()?.userProfile;
+            IEnumerable<ItemDef> items = StartingLoadoutService.EnumerateEligibleItems(p, userProfile);
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                var needle = _search.Trim();
+                items = items.Where(i => DisplayName(i).IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 || i.name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+            foreach (var item in items.OrderBy(i => (int)i.tier).ThenBy(DisplayName))
+            {
+                var selected = p.startingLoadout.FirstOrDefault(x => x.itemName == item.name)?.count ?? 0;
+                var cost = StartingLoadoutService.CostOfCopy(item, selected);
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label(DisplayName(item), GUILayout.Width(400));
+                GUILayout.Label(StartingLoadoutService.TierName(item), GUILayout.Width(125));
+                GUILayout.Label($"{cost} мест", GUILayout.Width(80));
+                if (GUILayout.Button("+", GUILayout.Width(44)))
+                {
+                    if (!StartingLoadoutService.TryAdd(p, item, out var error)) SetStatus(error);
+                    else SetStatus($"Добавлено: {DisplayName(item)}.");
+                }
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical("box", GUILayout.ExpandWidth(true));
+            GUILayout.Label("ВЫБРАНО", _nodeTitle);
+            _selectedScroll = GUILayout.BeginScrollView(_selectedScroll);
+            foreach (var record in p.startingLoadout.ToList())
+            {
+                var item = StartingLoadoutService.FindItem(record.itemName);
+                if (item == null) continue;
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label($"{DisplayName(item)} x{record.count}", GUILayout.ExpandWidth(true));
+                if (GUILayout.Button("−", GUILayout.Width(44))) StartingLoadoutService.RemoveOne(p, item);
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
         }
 
         private Rect GetNodeRect(TalentDef def, Rect canvas)
         {
-            var nodeWidth = Mathf.Min(260f, (canvas.width - 100f) / 3f);
-            var nodeHeight = 116f;
+            var nodeWidth = Mathf.Min(300f, (canvas.width - 120f) / 3f);
+            const float nodeHeight = 122f;
             var usable = canvas.width - 40f - nodeWidth;
-            var stepX = usable * 0.5f;
-            var x = canvas.x + 20f + stepX * def.TreeColumn;
-            var y = canvas.y + 18f + def.TreeRow * 136f;
+            var x = canvas.x + 20f + usable * 0.5f * def.TreeColumn;
+            var y = canvas.y + 18f + def.TreeRow * 140f;
             return new Rect(x, y, nodeWidth, nodeHeight);
+        }
+
+        private static bool SameCategory(TalentBranch a, TalentBranch b)
+        {
+            if (b == TalentBranch.Legacy) return a == TalentBranch.Legacy;
+            return TalentCatalog.ClassForBranch(a) == TalentCatalog.ClassForBranch(b);
+        }
+
+        private static TalentBranch BaseBranchForClass(string id)
+        {
+            if (id == "Guardian") return TalentBranch.Guardian;
+            if (id == "Slayer") return TalentBranch.Slayer;
+            if (id == "Pathfinder") return TalentBranch.Pathfinder;
+            return TalentBranch.Seeker;
+        }
+        private static TalentBranch FirstSpecBranch(string id)
+        {
+            if (id == "Guardian") return TalentBranch.GuardianBastion;
+            if (id == "Slayer") return TalentBranch.SlayerExecutioner;
+            if (id == "Pathfinder") return TalentBranch.PathfinderScout;
+            return TalentBranch.SeekerMerchant;
+        }
+        private static TalentBranch SecondSpecBranch(string id)
+        {
+            if (id == "Guardian") return TalentBranch.GuardianUnbroken;
+            if (id == "Slayer") return TalentBranch.SlayerHunter;
+            if (id == "Pathfinder") return TalentBranch.PathfinderAcrobat;
+            return TalentBranch.SeekerProspector;
+        }
+
+        private static string BranchTitle(TalentBranch b)
+        {
+            switch (b)
+            {
+                case TalentBranch.Legacy: return "НАСЛЕДИЕ";
+                case TalentBranch.Guardian: return "СТРАЖ";
+                case TalentBranch.GuardianBastion: return "БАСТИОН";
+                case TalentBranch.GuardianUnbroken: return "НЕСОКРУШИМЫЙ";
+                case TalentBranch.Slayer: return "ИСТРЕБИТЕЛЬ";
+                case TalentBranch.SlayerExecutioner: return "ПАЛАЧ";
+                case TalentBranch.SlayerHunter: return "ОХОТНИК";
+                case TalentBranch.Pathfinder: return "СЛЕДОПЫТ";
+                case TalentBranch.PathfinderScout: return "РАЗВЕДЧИК";
+                case TalentBranch.PathfinderAcrobat: return "АКРОБАТ";
+                case TalentBranch.Seeker: return "ИСКАТЕЛЬ";
+                case TalentBranch.SeekerMerchant: return "ТОРГОВЕЦ";
+                default: return "СТАРАТЕЛЬ";
+            }
+        }
+
+        private static string ClassDisplay(string id)
+        {
+            if (id == "Guardian") return "Страж";
+            if (id == "Slayer") return "Истребитель";
+            if (id == "Pathfinder") return "Следопыт";
+            if (id == "Seeker") return "Искатель";
+            return "не выбран";
+        }
+        private static string SpecDisplay(string id)
+        {
+            if (id == "Bastion") return "Бастион";
+            if (id == "Unbroken") return "Несокрушимый";
+            if (id == "Executioner") return "Палач";
+            if (id == "Hunter") return "Охотник";
+            if (id == "Scout") return "Разведчик";
+            if (id == "Acrobat") return "Акробат";
+            if (id == "Merchant") return "Торговец";
+            if (id == "Prospector") return "Старатель";
+            return "не выбрана";
         }
 
         private void DrawConnection(Rect parent, Rect child, Color color)
@@ -222,96 +479,9 @@ namespace PetrichorLegacy.UI
             var start = new Vector2(parent.center.x, parent.yMax);
             var end = new Vector2(child.center.x, child.y);
             var middleY = (start.y + end.y) * 0.5f;
-
             FillRect(new Rect(start.x - 1.5f, start.y, 3f, Mathf.Max(1f, middleY - start.y)), color);
-            var left = Mathf.Min(start.x, end.x);
-            var right = Mathf.Max(start.x, end.x);
-            FillRect(new Rect(left, middleY - 1.5f, Mathf.Max(3f, right - left), 3f), color);
+            FillRect(new Rect(Mathf.Min(start.x, end.x), middleY - 1.5f, Mathf.Max(3f, Mathf.Abs(end.x - start.x)), 3f), color);
             FillRect(new Rect(end.x - 1.5f, middleY, 3f, Mathf.Max(1f, end.y - middleY)), color);
-        }
-
-        private void DrawLoadoutArea(Models.ProfileProgress profile, Rect area)
-        {
-            GUILayout.BeginArea(new Rect(area.x + 8f, area.y + 8f, area.width - 16f, area.height - 16f));
-            DrawLoadout(profile);
-            GUILayout.EndArea();
-        }
-
-        private void DrawLoadout(Models.ProfileProgress profile)
-        {
-            var capacity = ProgressionService.StartingCapacity(profile);
-            var used = StartingLoadoutService.UsedCapacity(profile);
-            GUILayout.Label($"Вместимость: {used}/{capacity}. Каждая следующая копия одного предмета дороже предыдущей.");
-
-            GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical("box", GUILayout.Width(Mathf.Min(900f, (_window.width - 60f) * 0.62f)));
-            GUILayout.Label("ДОСТУПНЫЕ ПРЕДМЕТЫ (только открытые в Logbook)");
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Поиск:", GUILayout.Width(60));
-            _search = GUILayout.TextField(_search ?? "");
-            GUILayout.EndHorizontal();
-
-            _itemScroll = GUILayout.BeginScrollView(_itemScroll);
-            var userProfile = LocalUserManager.GetFirstLocalUser()?.userProfile;
-            IEnumerable<ItemDef> items = StartingLoadoutService.EnumerateEligibleItems(profile, userProfile);
-            if (!string.IsNullOrWhiteSpace(_search))
-            {
-                var needle = _search.Trim();
-                items = items.Where(i => DisplayName(i).IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                         i.name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
-            }
-
-            foreach (var item in items.OrderBy(i => (int)i.tier).ThenBy(DisplayName))
-            {
-                var selected = profile.startingLoadout.FirstOrDefault(x => x.itemName == item.name)?.count ?? 0;
-                var cost = StartingLoadoutService.CostOfCopy(item, selected);
-                GUILayout.BeginHorizontal("box");
-                GUILayout.Label(DisplayName(item), GUILayout.Width(390));
-                GUILayout.Label(StartingLoadoutService.TierName(item), GUILayout.Width(125));
-                GUILayout.Label($"Цена: {cost}", GUILayout.Width(80));
-                GUI.enabled = used + cost <= capacity;
-                if (GUILayout.Button("+", GUILayout.Width(45)))
-                {
-                    if (StartingLoadoutService.TryAdd(profile, item, out var error)) SetStatus($"Добавлено: {DisplayName(item)}");
-                    else SetStatus(error);
-                }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-
-            GUILayout.BeginVertical("box", GUILayout.ExpandWidth(true));
-            GUILayout.Label("ВЫБРАНО");
-            _selectedScroll = GUILayout.BeginScrollView(_selectedScroll);
-            foreach (var record in profile.startingLoadout.ToList())
-            {
-                var item = StartingLoadoutService.FindItem(record.itemName);
-                if (item == null) continue;
-                GUILayout.BeginHorizontal("box");
-                GUILayout.Label($"{DisplayName(item)}  x{record.count}", GUILayout.ExpandWidth(true));
-                if (GUILayout.Button("−", GUILayout.Width(45))) StartingLoadoutService.RemoveOne(profile, item);
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(4);
-            GUILayout.Label("Hexes, Pages, Scrap, consumed/internal/key items не могут быть стартовыми. Hallowed открываются последним талантом ветки Экспедиции.");
-        }
-
-        private static string BranchTitle(TalentBranch branch)
-        {
-            switch (branch)
-            {
-                case TalentBranch.Survival: return "ВЫЖИВАНИЕ";
-                case TalentBranch.Offense: return "УРОН";
-                case TalentBranch.Mobility: return "МОБИЛЬНОСТЬ";
-                case TalentBranch.Fortune: return "УДАЧА И ЛУТ";
-                case TalentBranch.Expedition: return "ЭКСПЕДИЦИЯ";
-                default: return branch.ToString();
-            }
         }
 
         private static string DisplayName(ItemDef item)
@@ -321,64 +491,33 @@ namespace PetrichorLegacy.UI
             return string.IsNullOrWhiteSpace(localized) ? item.name : localized;
         }
 
-        private void SetStatus(string message)
+        private void SetStatus(string text)
         {
-            _status = message ?? "";
+            _status = text ?? string.Empty;
             _statusUntil = Time.unscaledTime + 4f;
         }
 
         private void EnsureStyles()
         {
-            if (_hudLabel != null) return;
+            if (_windowStyle != null) return;
+            _windowTexture = new Texture2D(1, 1);
+            _windowTexture.SetPixel(0, 0, new Color(0.025f, 0.032f, 0.038f, 1f));
+            _windowTexture.Apply();
 
-            _hudLabel = new GUIStyle(GUI.skin.label)
+            _windowStyle = new GUIStyle(GUI.skin.window)
             {
-                alignment = TextAnchor.MiddleCenter,
+                normal = { background = _windowTexture, textColor = Color.white },
                 fontSize = 15,
-                fontStyle = FontStyle.Bold
-            };
-            _hudLabel.normal.textColor = Color.white;
-
-            _hudAward = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 14,
-                fontStyle = FontStyle.Bold
-            };
-            _hudAward.normal.textColor = new Color(0.68f, 0.91f, 1f, 1f);
-
-            _header = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleLeft,
-                fontSize = 15,
-                fontStyle = FontStyle.Bold
-            };
-            _header.normal.textColor = Color.white;
-
-            _nodeTitle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.UpperCenter,
-                fontSize = 14,
                 fontStyle = FontStyle.Bold,
-                wordWrap = true
-            };
-            _nodeTitle.normal.textColor = Color.white;
-
-            _nodeDesc = new GUIStyle(GUI.skin.label)
-            {
                 alignment = TextAnchor.UpperCenter,
-                fontSize = 12,
-                wordWrap = true
+                padding = new RectOffset(8, 8, 8, 8)
             };
-            _nodeDesc.normal.textColor = new Color(0.84f, 0.88f, 0.90f, 1f);
-
-            _centerLabel = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 13,
-                fontStyle = FontStyle.Bold
-            };
-            _centerLabel.normal.textColor = Color.white;
+            _header = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
+            _small = new GUIStyle(GUI.skin.label) { fontSize = 12, wordWrap = true, normal = { textColor = new Color(0.72f, 0.78f, 0.81f, 1f) } };
+            _nodeTitle = new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
+            _nodeDesc = new GUIStyle(GUI.skin.label) { fontSize = 12, wordWrap = true, normal = { textColor = new Color(0.86f, 0.89f, 0.91f, 1f) } };
+            _center = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 13, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } };
+            _hud = new GUIStyle(_center) { fontSize = 14 };
         }
 
         private static void FillRect(Rect rect, Color color)
@@ -388,7 +527,6 @@ namespace PetrichorLegacy.UI
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             GUI.color = old;
         }
-
         private static void DrawBorder(Rect rect, Color color, float thickness)
         {
             FillRect(new Rect(rect.x, rect.y, rect.width, thickness), color);
