@@ -56,7 +56,7 @@ foreach (var b in buffs)
 }
 var stblBytes = stbl.Encode().ToArray();
 
-var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+var root = Directory.GetCurrentDirectory();
 var dist = Path.Combine(root, "dist_v061");
 Directory.CreateDirectory(dist);
 var outputPath = Path.Combine(dist, "LifeWithConsequences_0.6.1.package");
