@@ -83,3 +83,5 @@ jobs:
           path: dist/LifeWithConsequences_0.6.0_TS4_1.127.41.ts4script
           if-no-files-found: error
           retention-days: 1
+
+# trigger v0.6.0 build
