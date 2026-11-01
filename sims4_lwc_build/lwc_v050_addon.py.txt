@@ -1,0 +1,265 @@
+# v0.5.0 addon applied after the proven v0.4.2 core.
+MOD_VERSION = "0.5.0"
+HISTORY_LIMIT = 20
+
+def _show_profile(info):
+    try:
+        state=_state(info)
+        level=_level(state.get("xp",0))
+        next_xp=_next_level_xp(level)
+        traits,drawbacks=_character_lists(state)
+        now=_now_ticks(); one_hour=max(1,_hours_ticks(1))
+        next_tick=int(state.get("next_event_tick",0) or 0)
+        left=max(0,next_tick-now)//one_hour if now and next_tick else 0
+        xp_text=str(int(state.get("xp",0))) if next_xp is None else "{} / {}".format(int(state.get("xp",0)),next_xp)
+        lines=[
+            "{}".format(_sim_name(info)),
+            "",
+            "Жизненный уровень: {}".format(level),
+            "Опыт: {}".format(xp_text),
+            "Очки перков: {}".format(int(state.get("perk_points",0))),
+            "",
+            "Стресс: {}/100 — {}".format(int(state.get("stress",0)),_stage(state.get("stress",0))),
+            "Репутация: {:+d} — {}".format(int(state.get("reputation",0)),_reputation_label(state.get("reputation",0))),
+            "",
+            "Черты: {}".format(", ".join(traits) if traits else "нет"),
+            "Недостатки: {}".format(", ".join(drawbacks) if drawbacks else "нет"),
+            "",
+            "Случайных событий: {}".format(int(state.get("events",0))),
+            "Событий реальной жизни: {}".format(int(state.get("life_events",0))),
+            "Следующее событие: примерно через {} ч.".format(left),
+        ]
+        history=state.get("history",[])
+        if history:
+            lines.extend(["","Последние решения:"])
+            for item in history[-6:]:
+                if isinstance(item,dict):
+                    lines.append("• {} — {}".format(item.get("event","Событие"),item.get("choice","")))
+                else:
+                    lines.append("• {}".format(item))
+        else:
+            lines.extend(["","История решений начнёт заполняться с v0.4.2."])
+        _notify("Life With Consequences — профиль","\\n".join(lines))
+        return True
+    except Exception:
+        _log_exception("profile display failed")
+        return False
+
+
+# --- v0.5.0 real-life observer ---------------------------------------------
+
+def _watch_value(obj,name,default=None):
+    try:
+        value=getattr(obj,name,default)
+        return value() if callable(value) else value
+    except Exception:
+        return default
+
+
+def _career_snapshot(info):
+    """Return a stable career-id -> level map without depending on one career class."""
+    result={}
+    try:
+        tracker=getattr(info,"career_tracker",None)
+        careers=getattr(tracker,"careers",None) if tracker is not None else None
+        values=careers.values() if careers is not None and hasattr(careers,"values") else ()
+        for career in values:
+            try:
+                key=_watch_value(career,"guid64",None)
+                if key is None:key=_watch_value(career,"career_uid",None)
+                if key is None:key=_watch_value(career,"uid",None)
+                if key is None:key=career.__class__.__name__
+                level=_watch_value(career,"level",0)
+                try: level=int(level)
+                except Exception: level=0
+                result[str(key)]=level
+            except Exception:
+                continue
+    except Exception:
+        _log_exception("career snapshot failed")
+    return result
+
+
+def _spouse_id(info):
+    """Try the spouse accessors used by different TS4 builds/mod APIs."""
+    try:
+        tracker=getattr(info,"relationship_tracker",None)
+        for obj in (tracker,info):
+            if obj is None:continue
+            for name in ("spouse_sim_id","spouse_id"):
+                value=_watch_value(obj,name,None)
+                if value:
+                    try:return int(value)
+                    except Exception:return value
+    except Exception:
+        _log_exception("spouse snapshot failed")
+    return 0
+
+
+def _is_dead(info):
+    if info is None:return False
+    value=_watch_value(info,"is_dead",False)
+    try:return bool(value)
+    except Exception:return False
+
+
+def _household_alive_snapshot():
+    result={}
+    try:
+        for info in _household_infos():
+            sid=_sim_id(info)
+            if sid is not None:
+                result[str(sid)]=not _is_dead(info)
+    except Exception:
+        _log_exception("household alive snapshot failed")
+    return result
+
+
+def _lookup_sim_info(sim_id):
+    try:
+        manager=services.sim_info_manager()
+        if manager is None:return None
+        try:return manager.get(int(sim_id))
+        except Exception:return manager.get(sim_id)
+    except Exception:
+        return None
+
+
+def _life_apply(info,state,title,stress_delta,rep_delta,xp_delta,tendency=None,notify=True,summary=None):
+    try:
+        result=(int(stress_delta),int(rep_delta),int(xp_delta),tendency or "resilient")
+        if tendency is None:
+            old_level=_level(state.get("xp",0)); old_stage=_stage(state.get("stress",0))
+            state["stress"]=max(0,min(100,int(state.get("stress",0))+int(stress_delta)))
+            state["reputation"]=max(-100,min(100,int(state.get("reputation",0))+int(rep_delta)))
+            state["xp"]=max(0,int(state.get("xp",0))+int(xp_delta))
+            new_level=_level(state["xp"]); new_stage=_stage(state["stress"])
+            if new_level>old_level:
+                gained=new_level-old_level
+                state["perk_points"]=int(state.get("perk_points",0))+gained
+                if notify:
+                    _notify("Новый жизненный уровень","{} достиг(ла) уровня {}. Получено очков перков: {}.".format(_sim_name(info),new_level,gained))
+            if new_stage!=old_stage and notify:
+                _notify("Стресс: {}".format(new_stage),"{} — стресс {}/100.".format(_sim_name(info),state["stress"]))
+            applied=(int(stress_delta),int(rep_delta),int(xp_delta))
+        else:
+            applied=_apply_result(info,state,result)
+
+        state["life_events"]=int(state.get("life_events",0))+1
+        detail=summary or "Стресс {:+d}, репутация {:+d}, опыт {:+d}".format(applied[0],applied[1],applied[2])
+        _history_add(state,title,detail)
+        _save()
+        if notify:
+            _notify(
+                "Жизнь изменилась: {}".format(title),
+                "{}\n\nСтресс {:+d}\nРепутация {:+d}\nОпыт {:+d}".format(
+                    _sim_name(info),applied[0],applied[1],applied[2]
+                )
+            )
+        return True
+    except Exception:
+        _log_exception("real life event apply failed: {}".format(title))
+        return False
+
+
+def _life_watch_init(info,state):
+    watch=state.get("life_watch")
+    if not isinstance(watch,dict):
+        watch={}
+        state["life_watch"]=watch
+    if not watch.get("initialized"):
+        watch["career"]=_career_snapshot(info)
+        watch["spouse_id"]=_spouse_id(info)
+        watch["household_alive"]=_household_alive_snapshot()
+        watch["initialized"]=True
+        _save()
+        return False
+    return True
+
+
+def _life_watch_personal(info,state,is_active):
+    watch=state.setdefault("life_watch",{})
+    previous_career=watch.get("career")
+    if not isinstance(previous_career,dict):previous_career={}
+    current_career=_career_snapshot(info)
+
+    promoted=False
+    for key,level in current_career.items():
+        if key in previous_career:
+            try:
+                if int(level)>int(previous_career.get(key,level)):
+                    promoted=True
+                    break
+            except Exception:
+                pass
+    if promoted:
+        _life_apply(info,state,"Повышение", -5,8,45,"ambitious",is_active,"Карьерный рост")
+
+    if previous_career and not current_career:
+        _life_apply(info,state,"Потеря работы",20,-5,40,"nervous",is_active,"Карьера завершилась")
+
+    previous_spouse=watch.get("spouse_id",0) or 0
+    current_spouse=_spouse_id(info) or 0
+    if not previous_spouse and current_spouse:
+        _life_apply(info,state,"Свадьба",-10,8,55,"reliable",is_active,"Новый брак")
+    elif previous_spouse and not current_spouse and not _is_dead(_lookup_sim_info(previous_spouse)):
+        _life_apply(info,state,"Развод",25,-4,55,"distrustful",is_active,"Брак завершён")
+    elif previous_spouse and current_spouse and str(previous_spouse)!=str(current_spouse):
+        _life_apply(info,state,"Развод",25,-4,55,"distrustful",is_active,"Смена супруга/супруги")
+        _life_apply(info,state,"Свадьба",-10,8,55,"reliable",is_active,"Новый брак")
+
+    watch["career"]=current_career
+    watch["spouse_id"]=current_spouse
+
+
+def _life_watch_family_deaths(info,state,is_active):
+    watch=state.setdefault("life_watch",{})
+    previous=watch.get("household_alive")
+    if not isinstance(previous,dict):previous={}
+    current=_household_alive_snapshot()
+
+    for sid,was_alive in list(previous.items()):
+        if not was_alive:continue
+        if str(sid)==str(_sim_id(info)):continue
+        target=_lookup_sim_info(sid)
+        now_dead=_is_dead(target)
+        if target is not None and now_dead:
+            seen_key="death_seen_{}".format(sid)
+            if not watch.get(seen_key):
+                name=_sim_name(target)
+                _life_apply(
+                    info,state,"Потеря члена семьи",35,0,55,"nervous",is_active,
+                    "Умер(ла) {}".format(name)
+                )
+                watch[seen_key]=True
+
+    watch["household_alive"]=current
+
+
+def _life_watch_tick(info,state,is_active):
+    try:
+        if not _life_watch_init(info,state):
+            return
+        _life_watch_personal(info,state,is_active)
+        _life_watch_family_deaths(info,state,is_active)
+        _save()
+    except Exception:
+        _log_exception("real-life observer tick failed")
+
+
+def _scheduler(*_):
+    try:
+        now=_now_ticks()
+        if now<=0: _log("scheduler tick skipped: sim time unavailable"); return
+        active=_active_sim_info(); active_id=_sim_id(active)
+        for info in _household_infos():
+            if not _eligible(info): continue
+            state=_state(info); _life_watch_tick(info,state,_sim_id(info)==active_id); next_recovery=int(state.get("next_recovery_tick",0) or 0)
+            if next_recovery and now>=next_recovery:
+                recovery=1 if _trait_points(state,"burnout")>=3 else 2
+                if _trait_points(state,"resilient")>=3: recovery+=1
+                if int(state["stress"])>0: state["stress"]=max(0,int(state["stress"])-recovery)
+                state["next_recovery_tick"]=now+_hours_ticks(6); _save()
+            next_event=int(state.get("next_event_tick",0) or 0)
+            if next_event and now>=next_event and _sim_id(info)==active_id: _show_event(info); break
+    except Exception: _log_exception("scheduler callback failed")
