@@ -1,0 +1,109 @@
+name: Build Sims4 LWC v0.3.2
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/life_with_consequences_v031.py'
+      - 'sims4_lwc_build/trigger-v032.txt'
+      - '.github/workflows/build-sims4-lwc-v032.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Prepare v0.3.2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('sims4_lwc_build/life_with_consequences_v031.py').read_text(encoding='utf-8')
+          replacements = {
+              'Life With Consequences v0.3.1': 'Life With Consequences v0.3.2',
+              'MOD_VERSION = "0.3.1"': 'MOD_VERSION = "0.3.2"',
+              'FIRST_EVENT_HOURS = 6': 'FIRST_EVENT_HOURS = 24',
+              'NORMAL_EVENT_MIN_HOURS = 60': 'NORMAL_EVENT_MIN_HOURS = 24',
+              'NORMAL_EVENT_MAX_HOURS = 84': 'NORMAL_EVENT_MAX_HOURS = 24',
+          }
+          for old,new in replacements.items():
+              assert old in src, old
+              src=src.replace(old,new)
+
+          old_load='''    data=_default_data()\n    if isinstance(raw.get("sims"),dict): data["sims"]=raw["sims"]\n    _DATA=data; _save(); return _DATA'''
+          new_load='''    data=_default_data()\n    if isinstance(raw.get("sims"),dict): data["sims"]=raw["sims"]\n    if raw.get("version") != MOD_VERSION:\n        now=_now_ticks()\n        if now:\n            for state in data["sims"].values():\n                if isinstance(state,dict):\n                    state["next_event_tick"]=now+_hours_ticks(24)\n    _DATA=data; _save(); return _DATA'''
+          assert old_load in src
+          src=src.replace(old_load,new_load)
+
+          old_zone='''        _load(force=True); active_info=_active_sim_info()\n        if active_info is not None and _eligible(active_info):\n            state=_state(active_info); now=_now_ticks()\n            if int(state.get("events",0))==0: state["first_event_pending"]=True; state["next_event_tick"]=now+_hours_ticks(FIRST_EVENT_HOURS); _save()'''
+          new_zone='''        _load(force=True); active_info=_active_sim_info()\n        if active_info is not None and _eligible(active_info):\n            _state(active_info)'''
+          assert old_zone in src
+          src=src.replace(old_zone,new_zone)
+
+          old_notice='''"Мод запущен. Планировщик активен.\\nПервое жизненное событие должно появиться примерно через {} игровых часов.".format(FIRST_EVENT_HOURS)'''
+          new_notice='''"Мод запущен. Планировщик активен.\\nЖизненные события происходят раз в 24 игровых часа."'''
+          assert old_notice in src
+          src=src.replace(old_notice,new_notice)
+
+          Path('build').mkdir(exist_ok=True)
+          out=Path('build/life_with_consequences_v032.py')
+          out.write_text(src,encoding='utf-8')
+          print(out)
+          PY
+
+      - name: Compile and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python -OO - <<'PY'
+          import py_compile
+          import zipfile
+          from pathlib import Path
+          src=Path('build/life_with_consequences_v032.py')
+          pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.3.2_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src), cfile=str(pyc), doraise=True, optimize=2)
+          with zipfile.ZipFile(str(out),'w',compression=zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc),'life_with_consequences.pyc')
+          print(out)
+          PY
+
+      - name: Verify bytecode and daily interval
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util, zipfile
+          from pathlib import Path
+          source=Path('build/life_with_consequences_v032.py').read_text(encoding='utf-8')
+          assert 'MOD_VERSION = "0.3.2"' in source
+          assert 'FIRST_EVENT_HOURS = 24' in source
+          assert 'NORMAL_EVENT_MIN_HOURS = 24' in source
+          assert 'NORMAL_EVENT_MAX_HOURS = 24' in source
+          assert 'events",0))==0' not in source
+          p='dist/LifeWithConsequences_0.3.2_TS4_1.127.41.ts4script'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert names == ['life_with_consequences.pyc'], names
+              data=z.read(names[0])
+          assert data[:4] == importlib.util.MAGIC_NUMBER
+          print('verified daily interval and Python 3.7 bytecode')
+          PY
+
+      - name: Upload finished ts4script
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.3.2-TS4-1.127.41
+          path: dist/LifeWithConsequences_0.3.2_TS4_1.127.41.ts4script
+          if-no-files-found: error
+          retention-days: 1
