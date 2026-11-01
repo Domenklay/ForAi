@@ -15,3 +15,4 @@ with zipfile.ZipFile(str(out), 'w', zipfile.ZIP_DEFLATED) as z:
     for p in files:
         z.write(str(p), p.name)
 print(out)
+# trigger fixed v0.6.1 workflow
