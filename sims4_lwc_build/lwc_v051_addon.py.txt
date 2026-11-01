@@ -1,0 +1,78 @@
+# v0.5.1 save-sync addon. Keep runtime changes in memory until The Sims 4 actually saves.
+MOD_VERSION = "0.5.1"
+
+from game_services import GameServiceManager
+from services.persistence_service import PersistenceService
+
+_lwc051_disk_save = _save
+_lwc051_disk_load = _load
+_LWC051_DIRTY = False
+
+
+def _save():
+    """Mark state dirty; do not write persistent mod state until the game saves."""
+    global _LWC051_DIRTY
+    _LWC051_DIRTY = True
+
+
+def _lwc051_commit_state():
+    global _LWC051_DIRTY
+    if _DATA is None:
+        return False
+    try:
+        _DATA["version"] = MOD_VERSION
+        sync = _DATA.get("save_sync")
+        if not isinstance(sync, dict):
+            sync = {}
+            _DATA["save_sync"] = sync
+        sync["last_commit_tick"] = _now_ticks()
+        sync["mode"] = "game_save_only"
+        _lwc051_disk_save()
+        _LWC051_DIRTY = False
+        _log("state committed with game save")
+        return True
+    except Exception:
+        _log_exception("v0.5.1 state commit failed")
+        return False
+
+
+def _lwc051_reload_committed_state():
+    global _LWC051_DIRTY
+    try:
+        data = _lwc051_disk_load(force=True)
+        _LWC051_DIRTY = False
+        _log("committed state loaded")
+        return data
+    except Exception:
+        _log_exception("v0.5.1 committed state reload failed")
+        return _DATA
+
+
+def _load(force=False):
+    """Keep unsaved in-memory changes across lot travel within the same save session."""
+    global _DATA, _SLOT
+    slot = _slot_key()
+    if _DATA is not None and _SLOT == slot:
+        return _DATA
+    return _lwc051_reload_committed_state()
+
+
+@_inject(GameServiceManager, "on_all_households_and_sim_infos_loaded")
+def _lwc051_full_save_loaded(original, self, *args, **kwargs):
+    result = original(self, *args, **kwargs)
+    _lwc051_reload_committed_state()
+    return result
+
+
+@_inject(PersistenceService, "save_game_gen")
+def _lwc051_save_game_gen(original, self, timeline, save_game_data, send_save_message=True, **kwargs):
+    result = yield from original(
+        self,
+        timeline,
+        save_game_data,
+        send_save_message=send_save_message,
+        **kwargs
+    )
+    if send_save_message:
+        _lwc051_commit_state()
+    return result
