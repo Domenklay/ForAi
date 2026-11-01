@@ -18,7 +18,8 @@ var buffs = new (string File, ulong Id, uint NameKey, uint DescKey, string Name,
     ("guilt",3178156748154324375UL,0xA71D19D6,0x295EADD5,"Чувство вины","Решение было выгодным, но неприятное чувство после него никуда не делось.",14635,2,480,"2f7d0004:00000000:898bcc5a07f0f1d7")
 };
 
-string profileXml = """<?xml version="1.0" encoding="utf-8"?>
+string profileXml = """
+<?xml version="1.0" encoding="utf-8"?>
 <I c="LWCProfileInteraction" i="interaction" m="life_with_consequences" n="LWC:Profile" s="8939761482420579312">
   <V n="_saveable" t="disabled" />
   <T n="category">0</T>
@@ -27,11 +28,13 @@ string profileXml = """<?xml version="1.0" encoding="utf-8"?>
   <V n="pie_menu_icon" t="enabled"><V n="enabled" t="resource_key"><U n="resource_key"><T n="key">2f7d0004:00000000:25eea5cdba6a6fd6</T></U></V></V>
   <U n="progress_bar_enabled"><T n="bar_enabled">False</T></U>
   <E n="target_type">OBJECT</E>
-</I>""";
+</I>
+""";
 
 string BuffXml((string File, ulong Id, uint NameKey, uint DescKey, string Name, string Desc, int Mood, int Weight, int Duration, string Icon) b)
 {
-    return $"""<?xml version="1.0" encoding="utf-8"?>
+    return $"""
+<?xml version="1.0" encoding="utf-8"?>
 <I c="Buff" i="buff" m="buffs.buff" n="LWC:buff_{b.File}" s="{b.Id}">
   <V n="_temporary_commodity_info" t="enabled"><U n="enabled"><T n="max_duration">{b.Duration}</T></U></V>
   <T p="InGame\Audio\Stings\sting_buff_gain.propx" n="audio_sting_on_add">39b2aa4a:00000000:8af8b916cf64c646</T>
@@ -44,7 +47,8 @@ string BuffXml((string File, ulong Id, uint NameKey, uint DescKey, string Name, 
   <T n="refresh_on_add">True</T>
   <T n="show_timeout">True</T>
   <T n="visible">True</T>
-</I>""";
+</I>
+""";
 }
 
 var stbl = new StringTableModel();
