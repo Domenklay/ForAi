@@ -1,0 +1,304 @@
+# v0.6.0 relationship consequences addon.
+MOD_VERSION = "0.6.0"
+
+import sims4.resources
+
+FRIENDSHIP_TRACK_ID = 16650
+ROMANCE_TRACK_ID = 16651
+REL_BIT_ENGAGED = 15816
+REL_BIT_GETTING_MARRIED = 15818
+REL_BIT_MARRIED = 15822
+REL_BIT_PROMISED = 99429
+REL_BIT_SIGNIFICANT_OTHER = 15825
+REL_BIT_IN_FIGHT = 15845
+REL_BIT_IN_QUARREL = 15846
+REL_BIT_JUST_BROKE_UP = 97332
+COMMITTED_BITS = (
+    REL_BIT_ENGAGED,
+    REL_BIT_GETTING_MARRIED,
+    REL_BIT_MARRIED,
+    REL_BIT_PROMISED,
+    REL_BIT_SIGNIFICANT_OTHER,
+)
+REL_MEMORY_LIMIT = 8
+_REL_TRACK_CACHE = {}
+
+
+def _lwc060_track(track_id):
+    try:
+        if track_id in _REL_TRACK_CACHE:
+            return _REL_TRACK_CACHE[track_id]
+        manager = services.get_instance_manager(sims4.resources.Types.STATISTIC)
+        track = manager.get(track_id) if manager is not None else None
+        _REL_TRACK_CACHE[track_id] = track
+        return track
+    except Exception:
+        _log_exception("v0.6 relationship track load failed")
+        return None
+
+
+def _lwc060_score(info, target, track_id):
+    try:
+        tracker = getattr(info, "relationship_tracker", None)
+        track = _lwc060_track(track_id)
+        target_id = _sim_id(target)
+        if tracker is None or track is None or target_id is None:
+            return 0.0
+        return float(tracker.get_relationship_score(target_id, track))
+    except Exception:
+        return 0.0
+
+
+def _lwc060_bits(info, target):
+    result = set()
+    try:
+        tracker = getattr(info, "relationship_tracker", None)
+        target_id = _sim_id(target)
+        if tracker is None or target_id is None:
+            return result
+        for bit in tracker.get_all_bits(target_id):
+            guid = getattr(bit, "guid64", None)
+            if guid is not None:
+                result.add(int(guid))
+    except Exception:
+        pass
+    return result
+
+
+def _lwc060_targets(info):
+    try:
+        tracker = getattr(info, "relationship_tracker", None)
+        getter = getattr(tracker, "get_target_sim_infos", None) if tracker is not None else None
+        if getter is None:
+            return []
+        return [target for target in getter() if target is not None and _sim_id(target) != _sim_id(info)]
+    except Exception:
+        return []
+
+
+def _lwc060_snapshot(info):
+    result = {}
+    for target in _lwc060_targets(info):
+        try:
+            target_id = _sim_id(target)
+            if target_id is None:
+                continue
+            bits = _lwc060_bits(info, target)
+            result[str(target_id)] = {
+                "name": _sim_name(target),
+                "friendship": round(_lwc060_score(info, target, FRIENDSHIP_TRACK_ID), 2),
+                "romance": round(_lwc060_score(info, target, ROMANCE_TRACK_ID), 2),
+                "committed": any(bit in bits for bit in COMMITTED_BITS),
+                "married": REL_BIT_MARRIED in bits,
+                "fight": REL_BIT_IN_FIGHT in bits,
+                "quarrel": REL_BIT_IN_QUARREL in bits,
+                "broke_up": REL_BIT_JUST_BROKE_UP in bits,
+            }
+        except Exception:
+            continue
+    return result
+
+
+def _lwc060_relationship_memory(state):
+    memory = state.get("relationship_memory")
+    if not isinstance(memory, dict):
+        memory = {}
+        state["relationship_memory"] = memory
+    return memory
+
+
+def _lwc060_remember(state, target_id, target_name, label, detail=""):
+    memory = _lwc060_relationship_memory(state)
+    key = str(target_id)
+    item = memory.get(key)
+    if not isinstance(item, dict):
+        item = {"name": target_name, "entries": []}
+        memory[key] = item
+    item["name"] = target_name
+    entries = item.get("entries")
+    if not isinstance(entries, list):
+        entries = []
+        item["entries"] = entries
+    entries.append({"label": str(label), "detail": str(detail)})
+    if len(entries) > REL_MEMORY_LIMIT:
+        del entries[:-REL_MEMORY_LIMIT]
+
+
+def _lwc060_apply(info, state, target_id, target_name, title, stress_delta, rep_delta, xp_delta, tendency, detail):
+    try:
+        applied = _apply_result(info, state, (int(stress_delta), int(rep_delta), int(xp_delta), tendency))
+        state["relationship_events"] = int(state.get("relationship_events", 0)) + 1
+        _lwc060_remember(state, target_id, target_name, title, detail)
+        _history_add(state, title, "{}: {}".format(target_name, detail))
+        _save()
+        if _sim_id(info) == _sim_id(_active_sim_info()):
+            _notify(
+                "Отношения: {}".format(title),
+                "{} — {}\n\nСтресс {:+d}\nРепутация {:+d}\nОпыт {:+d}".format(
+                    _sim_name(info), target_name, applied[0], applied[1], applied[2]
+                ),
+            )
+        return True
+    except Exception:
+        _log_exception("v0.6 relationship consequence failed: {}".format(title))
+        return False
+
+
+def _lwc060_committed_target_ids(snapshot):
+    return [key for key, value in snapshot.items() if isinstance(value, dict) and value.get("committed")]
+
+
+def _lwc060_watch_tick(info, state):
+    try:
+        watch = state.get("relationship_watch")
+        if not isinstance(watch, dict):
+            watch = {}
+            state["relationship_watch"] = watch
+
+        current = _lwc060_snapshot(info)
+        if not watch.get("initialized"):
+            watch["relationships"] = current
+            watch["affairs_seen"] = {}
+            watch["initialized"] = True
+            _save()
+            return
+
+        previous = watch.get("relationships")
+        if not isinstance(previous, dict):
+            previous = {}
+        affairs_seen = watch.get("affairs_seen")
+        if not isinstance(affairs_seen, dict):
+            affairs_seen = {}
+            watch["affairs_seen"] = affairs_seen
+
+        committed_now = _lwc060_committed_target_ids(current)
+
+        for target_id, now_rel in current.items():
+            old_rel = previous.get(target_id)
+            if not isinstance(old_rel, dict):
+                continue
+            target_name = now_rel.get("name") or old_rel.get("name") or "Сим"
+            old_friend = float(old_rel.get("friendship", 0.0) or 0.0)
+            new_friend = float(now_rel.get("friendship", 0.0) or 0.0)
+            old_romance = float(old_rel.get("romance", 0.0) or 0.0)
+            new_romance = float(now_rel.get("romance", 0.0) or 0.0)
+            friend_delta = new_friend - old_friend
+
+            new_fight = bool(now_rel.get("fight")) and not bool(old_rel.get("fight"))
+            new_quarrel = bool(now_rel.get("quarrel")) and not bool(old_rel.get("quarrel"))
+            new_breakup_bit = bool(now_rel.get("broke_up")) and not bool(old_rel.get("broke_up"))
+            lost_commitment = bool(old_rel.get("committed")) and not bool(now_rel.get("committed"))
+
+            if new_fight:
+                _lwc060_apply(info, state, target_id, target_name, "Драка", 16, -5, 38, "scandalous", "Жёсткий конфликт")
+            elif new_quarrel:
+                _lwc060_apply(info, state, target_id, target_name, "Крупная ссора", 11, -2, 28, "nervous", "Серьёзный конфликт")
+
+            if (new_breakup_bit or lost_commitment) and not bool(old_rel.get("married")):
+                _lwc060_apply(info, state, target_id, target_name, "Расставание", 22, -3, 45, "distrustful", "Романтические отношения закончились")
+
+            # Infidelity: a serious romance (30+) appears with a third Sim while
+            # the actor already has another committed partner. Baseline prevents
+            # old relationships from firing on installation.
+            other_committed = [key for key in committed_now if key != target_id]
+            affair_key = str(target_id)
+            crossed_romance = old_romance < 30.0 <= new_romance
+            strong_romance_jump = (new_romance - old_romance) >= 20.0 and new_romance >= 30.0
+            if other_committed and not bool(now_rel.get("committed")) and (crossed_romance or strong_romance_jump):
+                if not affairs_seen.get(affair_key):
+                    _lwc060_apply(info, state, target_id, target_name, "Измена", 9, -12, 40, "scandalous", "Роман на стороне")
+                    affairs_seen[affair_key] = True
+            elif new_romance < 10.0:
+                affairs_seen.pop(affair_key, None)
+
+            if not new_fight and not new_quarrel:
+                if old_friend >= 30.0 and new_friend < 10.0:
+                    _lwc060_apply(info, state, target_id, target_name, "Разрыв дружбы", 15, -1, 32, "distrustful", "Близкая дружба разрушена")
+                elif friend_delta <= -30.0 and old_friend >= 10.0:
+                    _lwc060_apply(info, state, target_id, target_name, "Резкое ухудшение отношений", 10, -1, 25, "nervous", "Дружба резко ухудшилась")
+
+        watch["relationships"] = current
+        watch["affairs_seen"] = affairs_seen
+        _save()
+    except Exception:
+        _log_exception("v0.6 relationship observer failed")
+
+
+_lwc060_previous_scheduler = _scheduler
+
+
+def _scheduler(*args):
+    _lwc060_previous_scheduler(*args)
+    try:
+        for info in _household_infos():
+            if not _eligible(info):
+                continue
+            _lwc060_watch_tick(info, _state(info))
+    except Exception:
+        _log_exception("v0.6 scheduler relationship layer failed")
+
+
+def _lwc060_profile(info):
+    try:
+        state = _state(info)
+        level = _level(state.get("xp", 0))
+        next_xp = _lwc042_next_level_xp(level)
+        traits, drawbacks = _lwc042_character_lists(state)
+        now = _now_ticks()
+        one_hour = max(1, _hours_ticks(1))
+        next_tick = int(state.get("next_event_tick", 0) or 0)
+        left = max(0, next_tick - now) // one_hour if now and next_tick else 0
+        xp = int(state.get("xp", 0))
+        xp_text = str(xp) if next_xp is None else "{} / {}".format(xp, next_xp)
+        lines = [
+            _sim_name(info),
+            "",
+            "Жизненный уровень: {}".format(level),
+            "Опыт: {}".format(xp_text),
+            "Очки перков: {}".format(int(state.get("perk_points", 0))),
+            "",
+            "Стресс: {}/100 — {}".format(int(state.get("stress", 0)), _stage(state.get("stress", 0))),
+            "Репутация: {:+d} — {}".format(int(state.get("reputation", 0)), _lwc042_rep_label(state.get("reputation", 0))),
+            "",
+            "Черты: {}".format(", ".join(traits) if traits else "нет"),
+            "Недостатки: {}".format(", ".join(drawbacks) if drawbacks else "нет"),
+            "",
+            "Случайных событий: {}".format(int(state.get("events", 0))),
+            "Событий реальной жизни: {}".format(int(state.get("life_events", 0))),
+            "Событий отношений: {}".format(int(state.get("relationship_events", 0))),
+            "Следующее случайное событие: примерно через {} ч.".format(left),
+        ]
+        memory = _lwc060_relationship_memory(state)
+        shown = 0
+        if memory:
+            lines.extend(["", "Память отношений:"])
+            for target_id, item in list(memory.items())[-4:]:
+                if not isinstance(item, dict):
+                    continue
+                entries = item.get("entries", [])
+                if not entries:
+                    continue
+                last = entries[-1]
+                lines.append("• {} — {}".format(item.get("name", "Сим"), last.get("label", "Событие")))
+                shown += 1
+                if shown >= 4:
+                    break
+        history = state.get("history", [])
+        if history:
+            lines.extend(["", "Последние решения:"])
+            for item in history[-5:]:
+                if isinstance(item, dict):
+                    lines.append("• {} — {}".format(item.get("event", "Событие"), item.get("choice", "")))
+                else:
+                    lines.append("• {}".format(item))
+        _notify("Life With Consequences — профиль", "\n".join(lines))
+        return True
+    except Exception:
+        _log_exception("v0.6 profile display failed")
+        return False
+
+
+# Existing menu interaction resolves this global at click time, so replacing it
+# upgrades the profile without changing the .package interaction tuning.
+def _lwc042_show_profile(info):
+    return _lwc060_profile(info)
