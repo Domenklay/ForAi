@@ -1,0 +1,163 @@
+# v0.6.1 moodlets addon.
+MOD_VERSION = "0.6.1"
+
+LWC_BUFF_NERVOUS = 2241663046608037664
+LWC_BUFF_BETRAYAL = 5174297497776617278
+LWC_BUFF_AFTER_FIGHT = 8139445382139128986
+LWC_BUFF_BROKEN_HEART = 8759880793873706267
+LWC_BUFF_PRIDE = 5272924670220022269
+LWC_BUFF_RELIEF = 3878443874848191958
+LWC_BUFF_BURNOUT = 6572247178655976097
+LWC_BUFF_GUILT = 3178156748154324375
+
+LWC_BUFF_IDS = (
+    LWC_BUFF_NERVOUS,
+    LWC_BUFF_BETRAYAL,
+    LWC_BUFF_AFTER_FIGHT,
+    LWC_BUFF_BROKEN_HEART,
+    LWC_BUFF_PRIDE,
+    LWC_BUFF_RELIEF,
+    LWC_BUFF_BURNOUT,
+    LWC_BUFF_GUILT,
+)
+
+
+def _lwc061_buff(buff_id):
+    try:
+        manager = services.get_instance_manager(sims4.resources.Types.BUFF)
+        return manager.get(int(buff_id)) if manager is not None else None
+    except Exception:
+        _log_exception("v0.6.1 buff load failed: {}".format(buff_id))
+        return None
+
+
+def _lwc061_add_moodlet(info, buff_id, reason=None):
+    try:
+        if info is None:
+            return False
+        buff = _lwc061_buff(buff_id)
+        if buff is None:
+            _log("v0.6.1 buff tuning not found: {}".format(buff_id))
+            return False
+        localized_reason = _raw(reason) if reason else None
+        if localized_reason is None:
+            result = info.add_buff_from_op(buff)
+        else:
+            result = info.add_buff_from_op(buff, buff_reason=localized_reason)
+        if not result:
+            _log("v0.6.1 failed to add buff {} to {}".format(buff_id, _sim_name(info)))
+            return False
+        _log("v0.6.1 moodlet {} added to {}".format(buff_id, _sim_name(info)))
+        return True
+    except Exception:
+        _log_exception("v0.6.1 add moodlet failed: {}".format(buff_id))
+        return False
+
+
+_lwc061_previous_relationship_apply = _lwc060_apply
+
+
+def _lwc060_apply(info, state, target_id, target_name, title, stress_delta, rep_delta, xp_delta, tendency, detail):
+    result = _lwc061_previous_relationship_apply(
+        info, state, target_id, target_name, title,
+        stress_delta, rep_delta, xp_delta, tendency, detail
+    )
+    if not result:
+        return result
+    try:
+        if title == "Драка":
+            _lwc061_add_moodlet(info, LWC_BUFF_AFTER_FIGHT, "После драки")
+        elif title == "Крупная ссора":
+            _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "После серьёзной ссоры")
+        elif title == "Расставание":
+            _lwc061_add_moodlet(info, LWC_BUFF_BROKEN_HEART, "После расставания")
+        elif title in ("Разрыв дружбы", "Резкое ухудшение отношений"):
+            _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "Отношения разрушены")
+        elif title == "Измена":
+            _lwc061_add_moodlet(info, LWC_BUFF_GUILT, "После измены")
+            # Give the betrayed committed partner a separate moodlet when that Sim can be resolved.
+            snapshot = _lwc060_snapshot(info)
+            for partner_id, rel in snapshot.items():
+                if not isinstance(rel, dict) or not rel.get("committed"):
+                    continue
+                if str(partner_id) == str(target_id):
+                    continue
+                partner = _lookup_sim_info(partner_id)
+                if partner is not None:
+                    _lwc061_add_moodlet(partner, LWC_BUFF_BETRAYAL, "Партнёр оказался неверен")
+    except Exception:
+        _log_exception("v0.6.1 relationship moodlet mapping failed")
+    return result
+
+
+_lwc061_previous_life_apply = _life_apply
+
+
+def _life_apply(info, state, title, stress_delta, rep_delta, xp_delta, tendency=None, notify=True, summary=None):
+    result = _lwc061_previous_life_apply(
+        info, state, title, stress_delta, rep_delta, xp_delta,
+        tendency=tendency, notify=notify, summary=summary
+    )
+    if not result:
+        return result
+    try:
+        if title == "Повышение":
+            _lwc061_add_moodlet(info, LWC_BUFF_PRIDE, "После карьерного успеха")
+        elif title == "Потеря работы":
+            _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "После потери работы")
+        elif title == "Свадьба":
+            _lwc061_add_moodlet(info, LWC_BUFF_RELIEF, "Жизнь изменилась к лучшему")
+        elif title == "Развод":
+            _lwc061_add_moodlet(info, LWC_BUFF_BROKEN_HEART, "После развода")
+    except Exception:
+        _log_exception("v0.6.1 life moodlet mapping failed")
+    return result
+
+
+_lwc061_previous_finish_event = _finish_event
+
+
+def _finish_event(info, state, event, result, choice_text):
+    _lwc061_previous_finish_event(info, state, event, result, choice_text)
+    try:
+        stress_delta = int(result[0])
+        xp_delta = int(result[2])
+        tendency = result[3] if len(result) > 3 else None
+        title = event.get("title", "")
+
+        if stress_delta <= -10:
+            _lwc061_add_moodlet(info, LWC_BUFF_RELIEF, "Тяжёлый момент позади")
+
+        if tendency == "ambitious" and xp_delta >= 40:
+            _lwc061_add_moodlet(info, LWC_BUFF_PRIDE, "Смелое решение оправдало себя")
+
+        if tendency == "burnout":
+            _lwc061_add_moodlet(info, LWC_BUFF_BURNOUT, "Слишком долго без передышки")
+
+        guilt_choices = {
+            "Найденный кошелёк": ("Оставить себе",),
+            "Чужой секрет": ("Рассказать другим",),
+            "Ошибка на глазах у всех": ("Сделать вид, что виноват другой",),
+            "Соблазн присвоить заслугу": ("Забрать похвалу себе",),
+            "Трудный разговор": ("Избежать разговора",),
+            "Сомнительная просьба": ("Прикрыть знакомого",),
+        }
+        if choice_text in guilt_choices.get(title, ()):
+            _lwc061_add_moodlet(info, LWC_BUFF_GUILT, "После сомнительного решения")
+
+        if int(state.get("stress", 0)) >= 75:
+            if _trait_points(state, "burnout") >= 3:
+                _lwc061_add_moodlet(info, LWC_BUFF_BURNOUT, "Накопившееся переутомление")
+            else:
+                _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "Слишком много напряжения")
+    except Exception:
+        _log_exception("v0.6.1 random event moodlet mapping failed")
+
+
+@sims4.commands.Command("lwc.testmoodlets", command_type=sims4.commands.CommandType.Live)
+def _lwc061_test_moodlets(_connection=None):
+    info = _active_sim_info()
+    if info is None:
+        return
+    # Hidden diagnostic command; normal gameplay never requires it.
+    _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "Проверка Life With Consequences")
