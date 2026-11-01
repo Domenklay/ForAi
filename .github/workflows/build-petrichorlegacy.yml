@@ -48,11 +48,15 @@ jobs:
           cp "$HOME/.nuget/packages/newtonsoft.json/12.0.3/lib/net45/Newtonsoft.Json.dll" package/PetrichorLegacy/
           cd package
           zip -r ../PetrichorLegacy-0.7.1.zip PetrichorLegacy
+          cd ..
+          zip -r PetrichorLegacy-0.7.1-source.zip PetrichorLegacy \
+            -x 'PetrichorLegacy/bin/*' 'PetrichorLegacy/obj/*'
       - uses: actions/upload-artifact@v4
         with:
           name: PetrichorLegacy-0.7.1
           path: |
             PetrichorLegacy-0.7.1.zip
+            PetrichorLegacy-0.7.1-source.zip
             package/PetrichorLegacy/PetrichorLegacy.dll
             package/PetrichorLegacy/Newtonsoft.Json.dll
           if-no-files-found: error
