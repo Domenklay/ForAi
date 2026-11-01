@@ -1,0 +1,278 @@
+name: Build Sims4 LWC v0.4.2
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - '.github/workflows/build-sims4-lwc-v042.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Prepare v0.4.2 source from proven v0.4.1 core
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build dist
+          python - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          source=gzip.decompress(base64.b64decode(Path('sims4_lwc_build/lwc_v041.py.gz.b64').read_text().strip())).decode('utf-8')
+          source=source.replace('Life With Consequences v0.4.1 SAFE','Life With Consequences v0.4.2')
+          source=source.replace('MOD_VERSION = "0.4.1"','MOD_VERSION = "0.4.2"')
+          addon=r'''
+
+# --- v0.4.2 profile menu addon; the proven v0.4.1 runtime core above is unchanged. ---
+from event_testing.results import TestResult
+from interactions.base.immediate_interaction import ImmediateSuperInteraction
+from sims.sim import Sim
+from sims4.utils import flexmethod
+from singletons import DEFAULT
+
+PROFILE_INTERACTION_ID=8939761482420579312
+HISTORY_LIMIT=12
+
+
+def _lwc042_history(state):
+    history=state.get("history")
+    if not isinstance(history,list):
+        history=[]; state["history"]=history
+    return history
+
+
+def _lwc042_history_add(state,event_title,choice_text):
+    history=_lwc042_history(state)
+    history.append({"event":str(event_title),"choice":str(choice_text)})
+    if len(history)>HISTORY_LIMIT: del history[:-HISTORY_LIMIT]
+
+
+_lwc042_original_finish_event=_finish_event
+
+def _finish_event(info,state,event,result,choice_text):
+    _lwc042_original_finish_event(info,state,event,result,choice_text)
+    try:
+        _lwc042_history_add(state,event.get("title","Событие"),choice_text)
+        _save()
+    except Exception:
+        _log_exception("v0.4.2 history save failed")
+
+
+def _lwc042_rep_label(value):
+    value=int(value)
+    if value>=75:return "Безупречная"
+    if value>=30:return "Хорошая"
+    if value>-30:return "Нейтральная"
+    if value>-75:return "Плохая"
+    return "Скандальная"
+
+
+def _lwc042_next_level_xp(level):
+    if level>=20:return None
+    return 50*level*(level+1)
+
+
+def _lwc042_character_lists(state):
+    traits=[]; drawbacks=[]
+    for key,name in TRAIT_NAMES.items():
+        if _trait_points(state,key)>=3:
+            if key in DRAWBACK_KEYS: drawbacks.append(name)
+            else: traits.append(name)
+    return traits,drawbacks
+
+
+def _lwc042_show_profile(info):
+    try:
+        state=_state(info)
+        level=_level(state.get("xp",0)); next_xp=_lwc042_next_level_xp(level)
+        traits,drawbacks=_lwc042_character_lists(state)
+        now=_now_ticks(); one_hour=max(1,_hours_ticks(1)); next_tick=int(state.get("next_event_tick",0) or 0)
+        left=max(0,next_tick-now)//one_hour if now and next_tick else 0
+        xp=int(state.get("xp",0)); xp_text=str(xp) if next_xp is None else "{} / {}".format(xp,next_xp)
+        lines=[
+            _sim_name(info),"",
+            "Жизненный уровень: {}".format(level),
+            "Опыт: {}".format(xp_text),
+            "Очки перков: {}".format(int(state.get("perk_points",0))),"",
+            "Стресс: {}/100 — {}".format(int(state.get("stress",0)),_stage(state.get("stress",0))),
+            "Репутация: {:+d} — {}".format(int(state.get("reputation",0)),_lwc042_rep_label(state.get("reputation",0))),"",
+            "Черты: {}".format(", ".join(traits) if traits else "нет"),
+            "Недостатки: {}".format(", ".join(drawbacks) if drawbacks else "нет"),"",
+            "Событий пережито: {}".format(int(state.get("events",0))),
+            "Следующее событие: примерно через {} ч.".format(left)
+        ]
+        history=_lwc042_history(state)
+        if history:
+            lines.extend(["","Последние решения:"])
+            for item in history[-6:]:
+                if isinstance(item,dict): lines.append("• {} — {}".format(item.get("event","Событие"),item.get("choice","")))
+                else: lines.append("• {}".format(item))
+        else:
+            lines.extend(["","История решений начнёт заполняться с v0.4.2."])
+        _notify("Life With Consequences — профиль","\n".join(lines))
+        _save(); return True
+    except Exception:
+        _log_exception("v0.4.2 profile display failed"); return False
+
+
+class LWCProfileInteraction(ImmediateSuperInteraction):
+    @flexmethod
+    def test(cls,inst,*args,target=DEFAULT,context=None,**kwargs):
+        try:
+            inst_or_cls=inst if inst is not None else cls
+            if target is DEFAULT or target is None or context is None:return TestResult.NONE
+            actor=getattr(context,"sim",None); target_info=getattr(target,"sim_info",None)
+            actor_info=getattr(actor,"sim_info",None) if actor is not None else None
+            if target_info is None or actor_info is None:return TestResult.NONE
+            if _sim_id(target_info)!=_sim_id(actor_info):return TestResult.NONE
+            return super(LWCProfileInteraction,inst_or_cls).test(*args,target=target,context=context,**kwargs)
+        except Exception:
+            _log_exception("v0.4.2 profile interaction test failed"); return TestResult.NONE
+
+    def _run_interaction_gen(self,timeline):
+        try:
+            super()._run_interaction_gen(timeline)
+            info=getattr(self.target,"sim_info",None)
+            if info is not None:_lwc042_show_profile(info)
+            return True
+        except Exception:
+            _log_exception("v0.4.2 profile interaction run failed"); return False
+
+
+def _lwc042_add_profile_affordance(sim):
+    try:
+        if sim is None:return False
+        interaction=services.affordance_manager().get(PROFILE_INTERACTION_ID)
+        if interaction is None:
+            _log("profile interaction tuning not found: {}".format(PROFILE_INTERACTION_ID)); return False
+        current=getattr(sim,"_super_affordances",())
+        if interaction not in current: sim._super_affordances=current+(interaction,)
+        return True
+    except Exception:
+        _log_exception("v0.4.2 profile affordance injection failed"); return False
+
+
+@_inject(Sim,"on_add")
+def _lwc042_sim_on_add(original,self,*args,**kwargs):
+    result=original(self,*args,**kwargs); _lwc042_add_profile_affordance(self); return result
+
+
+@_inject(zone.Zone,"on_loading_screen_animation_finished")
+def _lwc042_zone_loaded(original,self,*args,**kwargs):
+    result=original(self,*args,**kwargs)
+    try:_lwc042_add_profile_affordance(_active_sim())
+    except Exception:_log_exception("v0.4.2 active Sim profile injection failed")
+    return result
+'''
+          source += addon
+          Path('build/life_with_consequences.py').write_text(source,encoding='utf-8')
+          assert 'MOD_VERSION = "0.4.2"' in source
+          assert 'class LWCProfileInteraction' in source
+          assert 'PROFILE_INTERACTION_ID=8939761482420579312' in source
+          print('prepared source bytes:',len(source.encode('utf-8')))
+          PY
+
+      - name: Compile ts4script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -OO - <<'PY'
+          import py_compile,zipfile,importlib.util
+          from pathlib import Path
+          src=Path('build/life_with_consequences.py'); pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src),cfile=str(pyc),doraise=True,optimize=2)
+          with zipfile.ZipFile(str(out),'w',compression=zipfile.ZIP_DEFLATED) as z:z.write(str(pyc),'life_with_consequences.pyc')
+          with zipfile.ZipFile(str(out)) as z:
+              data=z.read('life_with_consequences.pyc'); assert data[:4]==importlib.util.MAGIC_NUMBER
+          print('python37 magic:',data[:4].hex())
+          PY
+
+      - name: Write interaction tuning
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > build/lwc_profile.InteractionTuning.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <I c="LWCProfileInteraction" i="interaction" m="life_with_consequences" n="LWC:Profile" s="8939761482420579312">
+            <V n="_saveable" t="disabled" />
+            <T n="category">0</T>
+            <V n="content_score" t="disabled" />
+            <T n="display_name">0x08E2BF35</T>
+            <V n="pie_menu_icon" t="enabled"><V n="enabled" t="resource_key"><U n="resource_key"><T n="key">2f7d0004:00000000:25eea5cdba6a6fd6</T></U></V></V>
+            <U n="progress_bar_enabled"><T n="bar_enabled">False</T></U>
+            <E n="target_type">OBJECT</E>
+          </I>
+          XML
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build and validate package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/PackageTool
+          cat > build/PackageTool/PackageTool.csproj <<'XML'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="LlamaLogic.Packages" Version="3.8.2" /></ItemGroup></Project>
+          XML
+          cat > build/PackageTool/Program.cs <<'CS'
+          using LlamaLogic.Packages;
+          using LlamaLogic.Packages.Models;
+          const ulong interactionId=8939761482420579312UL;
+          const uint displayNameKey=0x08E2BF35;
+          const ulong stblBase=0x00A5DD2A333D6FADUL;
+          byte[] locales={0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x12,0x13,0x15};
+          var cwd=Directory.GetCurrentDirectory();
+          var tuningPath=Path.Combine(cwd,"build","lwc_profile.InteractionTuning.xml");
+          var outputPath=Path.Combine(cwd,"dist","LifeWithConsequences_0.4.2_Menu.package");
+          var stbl=new StringTableModel(); stbl.Set(displayNameKey,"Life With Consequences"); var stblBytes=stbl.Encode().ToArray();
+          using(var package=new DataBasePackedFile{CreationTime=DateTimeOffset.UnixEpoch,UpdatedTime=DateTimeOffset.UnixEpoch}){
+              package.Set(new ResourceKey((ResourceType)0xE882D22F,0x00000000,interactionId),File.ReadAllBytes(tuningPath),CompressionMode.ForceOff);
+              foreach(var locale in locales){var instance=((ulong)locale<<56)|stblBase;package.Set(new ResourceKey(ResourceType.StringTable,0x80000000,instance),stblBytes,CompressionMode.ForceOff);}
+              package.SaveAs(outputPath,ResourceKeyOrder.TypeGroupInstance);
+          }
+          using(var check=new DataBasePackedFile(outputPath)){
+              if(check.Count!=19)throw new Exception($"Unexpected resource count {check.Count}");
+              var key=new ResourceKey((ResourceType)0xE882D22F,0x00000000,interactionId);
+              if(!check.Keys.Contains(key))throw new Exception("Profile interaction missing");
+              Console.WriteLine($"validated package resources: {check.Count}");
+          }
+          CS
+          dotnet run --project build/PackageTool/PackageTool.csproj --configuration Release
+
+      - name: Build release zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          files=[Path('dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script'),Path('dist/LifeWithConsequences_0.4.2_Menu.package')]
+          out=Path('dist/LifeWithConsequences_0.4.2_FULL.zip')
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:
+              for p in files:z.write(str(p),p.name)
+          print(out)
+          PY
+
+      - name: Upload finished mod
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.4.2-FULL
+          path: |
+            dist/LifeWithConsequences_0.4.2_FULL.zip
+            dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script
+            dist/LifeWithConsequences_0.4.2_Menu.package
+          if-no-files-found: error
+          retention-days: 1
