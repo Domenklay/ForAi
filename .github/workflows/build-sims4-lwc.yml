@@ -23,6 +23,19 @@ jobs:
       - name: Verify Python
         run: python --version
 
+      - name: Decode source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          encoded = Path('sims4_lwc_build/lwc_v030.py.gz.b64').read_text().strip()
+          source = gzip.decompress(base64.b64decode(encoded))
+          Path('sims4_lwc_build/life_with_consequences_v030.py').write_bytes(source)
+          print('decoded source bytes:', len(source))
+          PY
+
       - name: Compile and package
         shell: bash
         run: |
@@ -33,27 +46,35 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          src = Path('sims4_lwc_build/life_with_consequences.py')
+          src = Path('sims4_lwc_build/life_with_consequences_v030.py')
           pyc = Path('build/life_with_consequences.pyc')
-          out = Path('dist/LifeWithConsequences_0.2.2_TS4_1.127.41.ts4script')
+          out = Path('dist/LifeWithConsequences_0.3.0_TS4_1.127.41.ts4script')
           py_compile.compile(str(src), cfile=str(pyc), doraise=True, optimize=2)
           with zipfile.ZipFile(str(out), 'w', compression=zipfile.ZIP_DEFLATED) as z:
               z.write(str(pyc), 'life_with_consequences.pyc')
           print(out)
           PY
+
+      - name: Verify bytecode and archive
+        shell: bash
+        run: |
+          set -euo pipefail
           python - <<'PY'
           import importlib.util, zipfile
-          p='dist/LifeWithConsequences_0.2.2_TS4_1.127.41.ts4script'
+          p='dist/LifeWithConsequences_0.3.0_TS4_1.127.41.ts4script'
           with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert names == ['life_with_consequences.pyc'], names
               data=z.read('life_with_consequences.pyc')
           print('magic=', data[:4].hex(), 'expected=', importlib.util.MAGIC_NUMBER.hex())
           assert data[:4] == importlib.util.MAGIC_NUMBER
+          assert len(data) > 1000
           PY
 
       - name: Upload finished ts4script
         uses: actions/upload-artifact@v4
         with:
-          name: LifeWithConsequences-TS4-1.127.41
-          path: dist/LifeWithConsequences_0.2.2_TS4_1.127.41.ts4script
+          name: LifeWithConsequences-v0.3.0-TS4-1.127.41
+          path: dist/LifeWithConsequences_0.3.0_TS4_1.127.41.ts4script
           if-no-files-found: error
           retention-days: 1
