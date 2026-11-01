@@ -1,4 +1,4 @@
-name: Build PetrichorLegacy UI 0.6.3
+name: Build PetrichorLegacy UI 0.7.0
 
 on:
   push:
@@ -29,6 +29,8 @@ jobs:
         run: python3 tools/patch_petrichorlegacy_062.py
       - name: Apply 0.6.3 ten-step Legacy patch
         run: python3 tools/patch_petrichorlegacy_063.py
+      - name: Apply 0.7.0 mastery and perfection overhaul
+        run: python3 tools/patch_petrichorlegacy_070.py
       - name: Restore
         run: dotnet restore PetrichorLegacy/PetrichorLegacy.csproj
       - name: Build
@@ -41,12 +43,12 @@ jobs:
           cp PetrichorLegacy/manifest.json package/PetrichorLegacy/
           cp "$HOME/.nuget/packages/newtonsoft.json/12.0.3/lib/net45/Newtonsoft.Json.dll" package/PetrichorLegacy/
           cd package
-          zip -r ../PetrichorLegacy-0.6.3.zip PetrichorLegacy
+          zip -r ../PetrichorLegacy-0.7.0.zip PetrichorLegacy
       - uses: actions/upload-artifact@v4
         with:
-          name: PetrichorLegacy-0.6.3
+          name: PetrichorLegacy-0.7.0
           path: |
-            PetrichorLegacy-0.6.3.zip
+            PetrichorLegacy-0.7.0.zip
             package/PetrichorLegacy/PetrichorLegacy.dll
             package/PetrichorLegacy/Newtonsoft.Json.dll
           if-no-files-found: error
