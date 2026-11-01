@@ -1,0 +1,177 @@
+name: Build Sims4 LWC v0.6.1
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/lwc_v061_addon.py.txt'
+      - '.github/workflows/build-sims4-lwc-v061.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Rebuild source through v0.6.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build dist
+          python - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          base=gzip.decompress(base64.b64decode(Path('sims4_lwc_build/lwc_v041.py.gz.b64').read_text().strip())).decode('utf-8')
+          wf=Path('.github/workflows/build-sims4-lwc-v042.yml').read_text(encoding='utf-8')
+          start=wf.index("          addon=r'''\n") + len("          addon=r'''\n")
+          end=wf.index("\n'''\n          source += addon", start)
+          base=base.replace('Life With Consequences v0.4.1 SAFE','Life With Consequences v0.4.2')
+          base=base.replace('MOD_VERSION = "0.4.1"','MOD_VERSION = "0.4.2"')
+          source=base+wf[start:end]
+          for p in ('lwc_v050_addon.py.txt','lwc_v051_addon.py.txt','lwc_v060_addon.py.txt','lwc_v061_addon.py.txt'):
+              source += '\n\n' + Path('sims4_lwc_build',p).read_text(encoding='utf-8') + '\n'
+          assert 'MOD_VERSION = "0.6.1"' in source
+          assert 'LWC_BUFF_BETRAYAL' in source
+          assert 'def _lwc051_commit_state' in source
+          Path('build/life_with_consequences.py').write_text(source,encoding='utf-8')
+          print('source bytes',len(source.encode('utf-8')))
+          PY
+
+      - name: Compile ts4script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -OO - <<'PY'
+          import importlib.util, py_compile, zipfile
+          from pathlib import Path
+          src=Path('build/life_with_consequences.py'); pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.6.1_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src),cfile=str(pyc),doraise=True,optimize=2)
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:z.write(str(pyc),'life_with_consequences.pyc')
+          with zipfile.ZipFile(str(out)) as z:data=z.read('life_with_consequences.pyc')
+          assert data[:4]==importlib.util.MAGIC_NUMBER
+          print('python37 magic',data[:4].hex())
+          PY
+
+      - name: Write interaction and moodlet tuning
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          profile='''<?xml version="1.0" encoding="utf-8"?>
+          <I c="LWCProfileInteraction" i="interaction" m="life_with_consequences" n="LWC:Profile" s="8939761482420579312">
+            <V n="_saveable" t="disabled" />
+            <T n="category">0</T>
+            <V n="content_score" t="disabled" />
+            <T n="display_name">0x08E2BF35</T>
+            <V n="pie_menu_icon" t="enabled"><V n="enabled" t="resource_key"><U n="resource_key"><T n="key">2f7d0004:00000000:25eea5cdba6a6fd6</T></U></V></V>
+            <U n="progress_bar_enabled"><T n="bar_enabled">False</T></U>
+            <E n="target_type">OBJECT</E>
+          </I>'''
+          Path('build/lwc_profile.xml').write_text(profile,encoding='utf-8')
+          buffs=[
+            ('nervous',2241663046608037664,'0xEAEF833E','0xA89B7FA4',14645,2,240,'2f7d0004:00000000:c6f6f57c3d2ac7aa'),
+            ('betrayal',5174297497776617278,'0x483CF4C7','0xA9CA817B',14643,3,720,'2f7d0004:00000000:d8a30dbc6c591ddd'),
+            ('after_fight',8139445382139128986,'0xD4D7E812','0x173916D5',14632,2,240,'2f7d0004:00000000:898bcc5a07f0f1d7'),
+            ('broken_heart',8759880793873706267,'0x50FE7FE4','0x9243D6A3',14643,3,1440,'2f7d0004:00000000:d8a30dbc6c591ddd'),
+            ('pride',5272924670220022269,'0x3D1D92B5','0x69F1BF3E',14634,2,480,'2f7d0004:00000000:afdf63731e01a494'),
+            ('relief',3878443874848191958,'0xD1665924','0xC00FEC59',14640,2,360,'2f7d0004:00000000:afdf63731e01a494'),
+            ('burnout',6572247178655976097,'0xBBDC7872','0x6E0D7D7C',14645,3,720,'2f7d0004:00000000:c6f6f57c3d2ac7aa'),
+            ('guilt',3178156748154324375,'0xA71D19D6','0x295EADD5',14635,2,480,'2f7d0004:00000000:898bcc5a07f0f1d7'),
+          ]
+          for name,instance,nk,dk,mood,weight,duration,icon in buffs:
+              xml=f'''<?xml version="1.0" encoding="utf-8"?>
+<I c="Buff" i="buff" m="buffs.buff" n="LWC:buff_{name}" s="{instance}">
+  <V n="_temporary_commodity_info" t="enabled"><U n="enabled"><T n="max_duration">{duration}</T></U></V>
+  <T p="InGame\\Audio\\Stings\\sting_buff_gain.propx" n="audio_sting_on_add">39b2aa4a:00000000:8af8b916cf64c646</T>
+  <T p="InGame\\Audio\\Stings\\sting_buff_loss.propx" n="audio_sting_on_remove">39b2aa4a:00000000:3bf33216a25546ea</T>
+  <T n="buff_description">{dk}</T>
+  <T n="buff_name">{nk}</T>
+  <T n="icon">{icon}</T>
+  <T n="mood_type">{mood}</T>
+  <T n="mood_weight">{weight}</T>
+  <T n="refresh_on_add">True</T>
+  <T n="show_timeout">True</T>
+  <T n="visible">True</T>
+</I>'''
+              Path('build',f'lwc_buff_{name}.xml').write_text(xml,encoding='utf-8')
+          PY
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build combined package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/PackageTool
+          cat > build/PackageTool/PackageTool.csproj <<'XML'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="LlamaLogic.Packages" Version="3.8.2" /></ItemGroup></Project>
+          XML
+          cat > build/PackageTool/Program.cs <<'CS'
+          using LlamaLogic.Packages;
+          using LlamaLogic.Packages.Models;
+          const ulong interactionId=8939761482420579312UL;
+          const ulong stblBase=0x00A5DD2A333D6FADUL;
+          byte[] locales={0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x12,0x13,0x15};
+          var buffs=new (string file,ulong id,uint name,uint desc,string nameText,string descText)[]{
+            ("nervous",2241663046608037664UL,0xEAEF833E,0xA89B7FA4,"На нервах","Последние события не дают расслабиться. Мысли постоянно возвращаются к проблемам."),
+            ("betrayal",5174297497776617278UL,0x483CF4C7,0xA9CA817B,"Предательство","Доверие разрушено. Осознание чужой неверности всё ещё причиняет боль."),
+            ("after_fight",8139445382139128986UL,0xD4D7E812,0x173916D5,"После драки","Адреналин ещё не ушёл. Конфликт оставил после себя злость."),
+            ("broken_heart",8759880793873706267UL,0x50FE7FE4,0x9243D6A3,"Разбитое сердце","Отношения закончились, а чувства ещё нет. Нужно время, чтобы пережить это."),
+            ("pride",5272924670220022269UL,0x3D1D92B5,0x69F1BF3E,"Гордость за себя","Труд и риск окупились. Есть повод почувствовать уверенность в себе."),
+            ("relief",3878443874848191958UL,0xD1665924,0xC00FEC59,"Облегчение","Тяжёлый момент позади. Наконец можно немного выдохнуть."),
+            ("burnout",6572247178655976097UL,0xBBDC7872,0x6E0D7D7C,"Выгорание","Слишком долго на пределе. Даже обычные дела теперь требуют лишних сил."),
+            ("guilt",3178156748154324375UL,0xA71D19D6,0x295EADD5,"Чувство вины","Решение было выгодным, но неприятное чувство после него никуда не делось.")
+          };
+          var stbl=new StringTableModel(); stbl.Set(0x08E2BF35,"Life With Consequences");
+          foreach(var b in buffs){stbl.Set(b.name,b.nameText);stbl.Set(b.desc,b.descText);} var stblBytes=stbl.Encode().ToArray();
+          var outPath=Path.Combine(Directory.GetCurrentDirectory(),"dist","LifeWithConsequences_0.6.1.package");
+          using(var package=new DataBasePackedFile{CreationTime=DateTimeOffset.UnixEpoch,UpdatedTime=DateTimeOffset.UnixEpoch}){
+            package.Set(new ResourceKey((ResourceType)0xE882D22F,0,interactionId),File.ReadAllBytes("build/lwc_profile.xml"),CompressionMode.ForceOff);
+            foreach(var b in buffs) package.Set(new ResourceKey((ResourceType)0x6017E896,0,b.id),File.ReadAllBytes($"build/lwc_buff_{b.file}.xml"),CompressionMode.ForceOff);
+            foreach(var locale in locales){var instance=((ulong)locale<<56)|stblBase;package.Set(new ResourceKey(ResourceType.StringTable,0x80000000,instance),stblBytes,CompressionMode.ForceOff);}
+            package.SaveAs(outPath,ResourceKeyOrder.TypeGroupInstance);
+          }
+          using(var check=new DataBasePackedFile(outPath)){
+            if(check.Count!=27)throw new Exception($"Unexpected resource count {check.Count}");
+            foreach(var b in buffs)if(!check.Keys.Contains(new ResourceKey((ResourceType)0x6017E896,0,b.id)))throw new Exception($"Missing buff {b.file}");
+            Console.WriteLine($"validated package resources: {check.Count}");
+          }
+          CS
+          dotnet run --project build/PackageTool/PackageTool.csproj --configuration Release
+
+      - name: Bundle release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          files=[Path('dist/LifeWithConsequences_0.6.1_TS4_1.127.41.ts4script'),Path('dist/LifeWithConsequences_0.6.1.package')]
+          out=Path('dist/LifeWithConsequences_0.6.1_FULL.zip')
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:
+              for p in files:z.write(str(p),p.name)
+          print(out)
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.6.1-FULL
+          path: |
+            dist/LifeWithConsequences_0.6.1_FULL.zip
+            dist/LifeWithConsequences_0.6.1_TS4_1.127.41.ts4script
+            dist/LifeWithConsequences_0.6.1.package
+          if-no-files-found: error
+          retention-days: 1
