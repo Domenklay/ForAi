@@ -1,0 +1,82 @@
+name: Build Sims4 LWC v0.4.1 SAFE
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/lwc_v041.py.gz.b64'
+      - '.github/workflows/build-sims4-lwc-v041.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Decode and validate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, gzip, ast
+          from pathlib import Path
+          encoded=Path('sims4_lwc_build/lwc_v041.py.gz.b64').read_text().strip()
+          source=gzip.decompress(base64.b64decode(encoded))
+          text=source.decode('utf-8')
+          assert 'MOD_VERSION = "0.4.1"' in text
+          assert 'FIRST_EVENT_HOURS = 3' in text
+          assert 'NORMAL_EVENT_MIN_HOURS = 24' in text
+          assert 'NORMAL_EVENT_MAX_HOURS = 24' in text
+          assert text.count('"title":') >= 30
+          ast.parse(text)
+          Path('build').mkdir(exist_ok=True)
+          Path('build/life_with_consequences_v041.py').write_bytes(source)
+          print('source bytes:', len(source), 'events:', text.count('"title":'))
+          PY
+
+      - name: Compile and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python -OO - <<'PY'
+          import py_compile, zipfile
+          from pathlib import Path
+          src=Path('build/life_with_consequences_v041.py')
+          pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.4.1_SAFE_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src),cfile=str(pyc),doraise=True,optimize=2)
+          with zipfile.ZipFile(str(out),'w',compression=zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc),'life_with_consequences.pyc')
+          print(out)
+          PY
+
+      - name: Verify Python 3.7 bytecode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util, zipfile
+          p='dist/LifeWithConsequences_0.4.1_SAFE_TS4_1.127.41.ts4script'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert names == ['life_with_consequences.pyc'], names
+              data=z.read(names[0])
+          assert data[:4] == importlib.util.MAGIC_NUMBER
+          print('magic:', data[:4].hex())
+          PY
+
+      - name: Upload finished ts4script
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.4.1-SAFE-TS4-1.127.41
+          path: dist/LifeWithConsequences_0.4.1_SAFE_TS4_1.127.41.ts4script
+          if-no-files-found: error
+          retention-days: 1
