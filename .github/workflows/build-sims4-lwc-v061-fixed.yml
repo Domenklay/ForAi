@@ -1,0 +1,49 @@
+name: Build Sims4 LWC v0.6.1 Fixed
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/build_v061.py'
+      - 'sims4_lwc_build/bundle_v061.py'
+      - 'sims4_lwc_build/lwc_v061_addon.py.txt'
+      - 'sims4_lwc_build/v061_package/**'
+      - '.github/workflows/build-sims4-lwc-v061-fixed.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Build ts4script
+        run: python sims4_lwc_build/build_v061.py
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build package
+        run: dotnet run --project sims4_lwc_build/v061_package/PackageTool.csproj --configuration Release
+
+      - name: Bundle release
+        run: python sims4_lwc_build/bundle_v061.py
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.6.1-FULL
+          path: |
+            dist_v061/LifeWithConsequences_0.6.1_FULL.zip
+            dist_v061/LifeWithConsequences_0.6.1_TS4_1.127.41.ts4script
+            dist_v061/LifeWithConsequences_0.6.1.package
+          if-no-files-found: error
+          retention-days: 1
