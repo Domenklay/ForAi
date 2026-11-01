@@ -1,0 +1,46 @@
+name: Build Sims4 LWC
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/**'
+      - '.github/workflows/build-sims4-lwc.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Compile and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+          mkdir -p build dist
+          python -OO - <<'PY'
+          import importlib.util
+          import py_compile
+          import zipfile
+          from pathlib import Path
+          src=Path('sims4_lwc_build/life_with_consequences.py')
+          pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.2.2_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src), cfile=str(pyc), doraise=True, optimize=2)
+          with zipfile.ZipFile(str(out), 'w', compression=zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc), 'life_with_consequences.pyc')
+          with zipfile.ZipFile(str(out)) as z:
+              data=z.read('life_with_consequences.pyc')
+          print('magic', data[:4].hex(), importlib.util.MAGIC_NUMBER.hex())
+          assert data[:4] == importlib.util.MAGIC_NUMBER
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-TS4-1.127.41
+          path: dist/LifeWithConsequences_0.2.2_TS4_1.127.41.ts4script
+          if-no-files-found: error
+          retention-days: 1
