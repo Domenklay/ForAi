@@ -1,0 +1,85 @@
+name: Build Sims4 LWC v0.6.0
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - 'sims4_lwc_build/lwc_v060_addon.py.txt'
+      - '.github/workflows/build-sims4-lwc-v060.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Rebuild v0.5.1 source and append v0.6 relationship layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build dist
+          python - <<'PY'
+          import base64
+          import gzip
+          from pathlib import Path
+
+          base=gzip.decompress(base64.b64decode(Path('sims4_lwc_build/lwc_v041.py.gz.b64').read_text().strip())).decode('utf-8')
+          wf=Path('.github/workflows/build-sims4-lwc-v042.yml').read_text(encoding='utf-8')
+          start=wf.index("          addon=r'''\n") + len("          addon=r'''\n")
+          end=wf.index("\n'''\n          source += addon", start)
+          v042_addon=wf[start:end]
+          base=base.replace('Life With Consequences v0.4.1 SAFE','Life With Consequences v0.4.2')
+          base=base.replace('MOD_VERSION = "0.4.1"','MOD_VERSION = "0.4.2"')
+          source=base+v042_addon
+          source += '\n\n' + Path('sims4_lwc_build/lwc_v050_addon.py.txt').read_text(encoding='utf-8') + '\n'
+          source += '\n\n' + Path('sims4_lwc_build/lwc_v051_addon.py.txt').read_text(encoding='utf-8') + '\n'
+          source += '\n\n' + Path('sims4_lwc_build/lwc_v060_addon.py.txt').read_text(encoding='utf-8') + '\n'
+          assert 'MOD_VERSION = "0.6.0"' in source
+          assert 'REL_BIT_IN_FIGHT = 15845' in source
+          assert 'FRIENDSHIP_TRACK_ID = 16650' in source
+          assert 'ROMANCE_TRACK_ID = 16651' in source
+          assert 'def _lwc060_watch_tick' in source
+          assert 'def _lwc051_commit_state' in source
+          Path('build/life_with_consequences.py').write_text(source,encoding='utf-8')
+          print('source bytes',len(source.encode('utf-8')))
+          PY
+
+      - name: Compile and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -OO - <<'PY'
+          import importlib.util
+          import py_compile
+          import zipfile
+          from pathlib import Path
+
+          src=Path('build/life_with_consequences.py')
+          pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.6.0_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src),cfile=str(pyc),doraise=True,optimize=2)
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc),'life_with_consequences.pyc')
+          with zipfile.ZipFile(str(out)) as z:
+              names=z.namelist()
+              data=z.read('life_with_consequences.pyc')
+          assert names==['life_with_consequences.pyc']
+          assert data[:4]==importlib.util.MAGIC_NUMBER
+          print('python37 magic',data[:4].hex())
+          print(out)
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.6.0-TS4-1.127.41
+          path: dist/LifeWithConsequences_0.6.0_TS4_1.127.41.ts4script
+          if-no-files-found: error
+          retention-days: 1
