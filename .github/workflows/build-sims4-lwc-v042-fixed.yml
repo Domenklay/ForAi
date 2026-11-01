@@ -1,0 +1,154 @@
+name: Build Sims4 LWC v0.4.2 Fixed
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-022
+    paths:
+      - '.github/workflows/build-sims4-lwc-v042-fixed.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+
+      - name: Rebuild source from proven v0.4.1 plus profile addon
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build dist
+          python - <<'PY'
+          import base64
+          import gzip
+          from pathlib import Path
+          base=gzip.decompress(base64.b64decode(Path('sims4_lwc_build/lwc_v041.py.gz.b64').read_text().strip())).decode('utf-8')
+          broken=Path('.github/workflows/build-sims4-lwc-v042.yml').read_text(encoding='utf-8')
+          start=broken.index("          addon=r'''\n") + len("          addon=r'''\n")
+          end=broken.index("\n'''\n          source += addon", start)
+          addon=broken[start:end]
+          base=base.replace('Life With Consequences v0.4.1 SAFE','Life With Consequences v0.4.2')
+          base=base.replace('MOD_VERSION = "0.4.1"','MOD_VERSION = "0.4.2"')
+          source=base+addon
+          Path('build/life_with_consequences.py').write_text(source,encoding='utf-8')
+          assert 'MOD_VERSION = "0.4.2"' in source
+          assert 'class LWCProfileInteraction' in source
+          print('source bytes',len(source.encode('utf-8')))
+          PY
+
+      - name: Compile ts4script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -OO - <<'PY'
+          import importlib.util
+          import py_compile
+          import zipfile
+          from pathlib import Path
+          src=Path('build/life_with_consequences.py')
+          pyc=Path('build/life_with_consequences.pyc')
+          out=Path('dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src),cfile=str(pyc),doraise=True,optimize=2)
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc),'life_with_consequences.pyc')
+          with zipfile.ZipFile(str(out)) as z:
+              data=z.read('life_with_consequences.pyc')
+          assert data[:4]==importlib.util.MAGIC_NUMBER
+          print('magic',data[:4].hex())
+          PY
+
+      - name: Write profile interaction XML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          xml='''<?xml version="1.0" encoding="utf-8"?>
+          <I c="LWCProfileInteraction" i="interaction" m="life_with_consequences" n="LWC:Profile" s="8939761482420579312">
+            <V n="_saveable" t="disabled" />
+            <T n="category">0</T>
+            <V n="content_score" t="disabled" />
+            <T n="display_name">0x08E2BF35</T>
+            <V n="pie_menu_icon" t="enabled"><V n="enabled" t="resource_key"><U n="resource_key"><T n="key">2f7d0004:00000000:25eea5cdba6a6fd6</T></U></V></V>
+            <U n="progress_bar_enabled"><T n="bar_enabled">False</T></U>
+            <E n="target_type">OBJECT</E>
+          </I>
+          '''
+          Path('build/lwc_profile.InteractionTuning.xml').write_text(xml,encoding='utf-8')
+          PY
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build package project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/PackageTool
+          python - <<'PY'
+          from pathlib import Path
+          csproj='''<Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+            <ItemGroup><PackageReference Include="LlamaLogic.Packages" Version="3.8.2" /></ItemGroup>
+          </Project>'''
+          program='''using LlamaLogic.Packages;
+          using LlamaLogic.Packages.Models;
+          const ulong interactionId=8939761482420579312UL;
+          const uint displayNameKey=0x08E2BF35;
+          const ulong stblBase=0x00A5DD2A333D6FADUL;
+          byte[] locales={0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x0B,0x0C,0x0D,0x0E,0x0F,0x11,0x12,0x13,0x15};
+          var cwd=Directory.GetCurrentDirectory();
+          var tuningPath=Path.Combine(cwd,"build","lwc_profile.InteractionTuning.xml");
+          var outputPath=Path.Combine(cwd,"dist","LifeWithConsequences_0.4.2_Menu.package");
+          var stbl=new StringTableModel();
+          stbl.Set(displayNameKey,"Life With Consequences");
+          var bytes=stbl.Encode().ToArray();
+          using(var package=new DataBasePackedFile{CreationTime=DateTimeOffset.UnixEpoch,UpdatedTime=DateTimeOffset.UnixEpoch}){
+            package.Set(new ResourceKey((ResourceType)0xE882D22F,0x00000000,interactionId),File.ReadAllBytes(tuningPath),CompressionMode.ForceOff);
+            foreach(var locale in locales){var instance=((ulong)locale<<56)|stblBase;package.Set(new ResourceKey(ResourceType.StringTable,0x80000000,instance),bytes,CompressionMode.ForceOff);}
+            package.SaveAs(outputPath,ResourceKeyOrder.TypeGroupInstance);
+          }
+          using(var check=new DataBasePackedFile(outputPath)){
+            if(check.Count!=19)throw new Exception($"Unexpected resource count {check.Count}");
+            var key=new ResourceKey((ResourceType)0xE882D22F,0x00000000,interactionId);
+            if(!check.Keys.Contains(key))throw new Exception("Profile interaction missing");
+            Console.WriteLine($"validated {check.Count} resources");
+          }
+          '''
+          Path('build/PackageTool/PackageTool.csproj').write_text(csproj,encoding='utf-8')
+          Path('build/PackageTool/Program.cs').write_text(program,encoding='utf-8')
+          PY
+          dotnet run --project build/PackageTool/PackageTool.csproj --configuration Release
+
+      - name: Bundle release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          files=[Path('dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script'),Path('dist/LifeWithConsequences_0.4.2_Menu.package')]
+          out=Path('dist/LifeWithConsequences_0.4.2_FULL.zip')
+          with zipfile.ZipFile(str(out),'w',zipfile.ZIP_DEFLATED) as z:
+              for p in files:z.write(str(p),p.name)
+          print(out)
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-v0.4.2-FULL
+          path: |
+            dist/LifeWithConsequences_0.4.2_FULL.zip
+            dist/LifeWithConsequences_0.4.2_TS4_1.127.41.ts4script
+            dist/LifeWithConsequences_0.4.2_Menu.package
+          if-no-files-found: error
+          retention-days: 1
