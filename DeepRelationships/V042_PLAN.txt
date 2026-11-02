@@ -1,0 +1,1 @@
+v0.4.2 expands the visible relationship moodlet set to 16 moodlets and uses custom PNG icon resources (0x00B2D882).
