@@ -1,0 +1,54 @@
+# v0.6.5 buff loading diagnostics and corrected package grouping.
+MOD_VERSION = "0.6.5"
+
+_LWC065_DIAG_SHOWN = False
+
+
+def _lwc065_buff_ids():
+    ids = list(LWC_BUFF_IDS)
+    if LWC_BUFF_GRIEF not in ids:
+        ids.append(LWC_BUFF_GRIEF)
+    return tuple(ids)
+
+
+def _lwc065_loaded_buffs():
+    loaded = []
+    for buff_id in _lwc065_buff_ids():
+        try:
+            if _lwc061_buff(buff_id) is not None:
+                loaded.append(buff_id)
+        except Exception:
+            pass
+    return loaded
+
+
+@sims4.commands.Command("lwc.buffstatus", command_type=sims4.commands.CommandType.Live)
+def _lwc065_buffstatus(_connection=None):
+    info = _active_sim_info()
+    loaded = _lwc065_loaded_buffs()
+    applied = False
+    if info is not None and LWC_BUFF_NERVOUS in loaded:
+        applied = _lwc061_add_moodlet(info, LWC_BUFF_NERVOUS, "Проверка загрузки Life With Consequences")
+    _notify(
+        "LWC — проверка мудлетов",
+        "Загружено мудлетов: {}/9.\nТестовый мудлет «На нервах»: {}.".format(
+            len(loaded), "добавлен" if applied else "НЕ добавлен"
+        )
+    )
+
+
+@_inject(zone.Zone, "on_loading_screen_animation_finished")
+def _lwc065_zone_loaded(original, self, *args, **kwargs):
+    global _LWC065_DIAG_SHOWN
+    result = original(self, *args, **kwargs)
+    try:
+        if not _LWC065_DIAG_SHOWN:
+            _LWC065_DIAG_SHOWN = True
+            loaded = _lwc065_loaded_buffs()
+            _notify(
+                "Life With Consequences v0.6.5",
+                "Проверка ресурсов мудлетов: {}/9 загружено.\nДля ручной проверки: lwc.buffstatus".format(len(loaded))
+            )
+    except Exception:
+        _log_exception("v0.6.5 buff diagnostic failed")
+    return result
