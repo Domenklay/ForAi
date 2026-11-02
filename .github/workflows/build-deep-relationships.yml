@@ -3,7 +3,7 @@ name: Build Deep Relationships
 on:
   push:
     branches:
-      - build/deep-relationships-v0.1.1-release-final12
+      - build/deep-relationships-v0.2.0
   workflow_dispatch:
 
 jobs:
@@ -20,10 +20,10 @@ jobs:
       - name: Inspect archive
         shell: bash
         run: |
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.1.1.ts4script
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.1.1_INSTALL.zip
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.2.0.ts4script
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.2.0_INSTALL.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: DeepRelationships-v0.1.1
+          name: DeepRelationships-v0.2.0
           path: DeepRelationships/dist/*
           if-no-files-found: error
