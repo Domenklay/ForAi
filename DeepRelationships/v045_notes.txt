@@ -1,0 +1,1 @@
+v0.4.5: real save-load lifecycle hook + DST5 moodlet icons + visible durations.
