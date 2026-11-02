@@ -19,6 +19,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fetch pinned v0.4.2 source commit
+        run: git fetch origin 44aa727d21d049bb98480821885bac8e4eae500c --depth=1
+
       - name: Setup Python 3.7
         uses: actions/setup-python@v5
         with:
