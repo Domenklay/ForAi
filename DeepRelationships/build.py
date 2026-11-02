@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 BUILD = ROOT / 'build'
 DIST = ROOT / 'dist'
-VERSION = '0.1.1'
+VERSION = '0.2.0'
 MOD_BASENAME = 'DeepRelationships_v{}'.format(VERSION)
 SCRIPT_NAME = MOD_BASENAME + '.ts4script'
 USER_ZIP_NAME = MOD_BASENAME + '_INSTALL.zip'
@@ -23,41 +23,33 @@ def clean():
         path.mkdir(parents=True, exist_ok=True)
 
 
-def compile_scripts():
+def compile_script():
     compiled = BUILD / 'compiled'
     compiled.mkdir(parents=True, exist_ok=True)
-    outputs = []
-    for source in sorted(SRC.glob('*.py')):
-        target = compiled / (source.stem + '.pyc')
-        py_compile.compile(str(source), cfile=str(target), doraise=True)
-        outputs.append(target)
-    if not outputs:
-        raise RuntimeError('No Python sources found')
-    return outputs
+    source = SRC / 'deep_relationships.py'
+    target = compiled / 'deep_relationships.pyc'
+    py_compile.compile(str(source), cfile=str(target), doraise=True)
+    return target
 
 
-def verify_python37(pyc_paths):
-    verified = []
-    for pyc_path in pyc_paths:
-        data = pyc_path.read_bytes()
-        magic = data[:4]
-        if magic != EXPECTED_MAGIC:
-            raise RuntimeError('Unexpected pyc magic for {}: {} (expected {})'.format(
-                pyc_path.name, magic.hex(), EXPECTED_MAGIC.hex()))
-        verified.append((pyc_path.name, magic.hex()))
-    return verified
+def verify_python37(pyc_path):
+    data = pyc_path.read_bytes()
+    magic = data[:4]
+    if magic != EXPECTED_MAGIC:
+        raise RuntimeError('Unexpected pyc magic for {}: {} (expected {})'.format(
+            pyc_path.name, magic.hex(), EXPECTED_MAGIC.hex()))
+    return magic.hex()
 
 
-def make_ts4script(pyc_paths):
+def make_ts4script(pyc_path):
     output = DIST / SCRIPT_NAME
     with zipfile.ZipFile(str(output), 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-        for pyc_path in sorted(pyc_paths, key=lambda p: p.name):
-            archive.write(str(pyc_path), arcname=pyc_path.name)
+        archive.write(str(pyc_path), arcname='deep_relationships.pyc')
     return output
 
 
 def make_readme():
-    text = '''ГЛУБОКИЕ ОТНОШЕНИЯ — v0.1.1\n\nСовместимость: The Sims 4 PC 1.127.x, DX11.\nЭто отдельный мод; прошлые семейные моды ему не нужны.\n\nВАЖНО ПРИ ОБНОВЛЕНИИ\nУдалите старый DeepRelationships_v0.1.0.ts4script перед установкой этой версии. Одновременно должна лежать только одна версия.\n\nУСТАНОВКА\n1. Откройте Documents\\Electronic Arts\\The Sims 4\\Mods.\n2. Положите папку DeepRelationships из этого архива в Mods.\n3. В игре должны быть включены «Пользовательский контент и моды» и «Моды сценариев».\n4. Полностью перезапустите игру.\n\nКАК ПОНЯТЬ, ЧТО МОД ЗАГРУЗИЛСЯ\nПосле входа в семью и завершения загрузочного экрана должно появиться уведомление «Глубокие отношения v0.1.1». В v0.1.1 запуск переведён на прямой хук окончания загрузочного экрана — тот же тип запуска, который использовался в рабочем семейном модуле.\n\nЧТО ДЕЛАЕТ МОД\n— Отслеживает романтические отношения активной семьи.\n— Для каждого направления хранит: Любовь, Доверие, Привязанность, Совместимость, Удовлетворённость.\n— Романтика повышает любовь и удовлетворённость.\n— Положительное дружеское общение укрепляет доверие и привязанность.\n— Негативные изменения сильнее бьют по доверию и удовлетворённости.\n— Долгое отсутствие общения постепенно снижает удовлетворённость; высокая привязанность замедляет спад.\n— Определяет состояния: «Медовый месяц», «Крепкая пара», «Кризис», «Недоверие», «Отдаление», «Отношения по привычке», «На грани разрыва» и др.\n— Данные сохраняются отдельно для сохранений в Documents\\Electronic Arts\\The Sims 4\\mod_data\\DeepRelationships.\n\nДИАГНОСТИКА\nКоманда deeprel.report показывает точные числа активного сима, но для обычной работы мода не нужна.\n'''
+    text = '''ГЛУБОКИЕ ОТНОШЕНИЯ — v0.2.0\n\nСовместимость: The Sims 4 PC 1.127.x, DX11.\nЭто отдельный мод с нуля. Предыдущие семейные моды ему не нужны.\n\nВАЖНО\nПеред установкой удалите ВСЕ старые DeepRelationships_v0.1.x.ts4script. Одновременно должна находиться только версия v0.2.0.\n\nУСТАНОВКА\n1. Откройте Documents\\Electronic Arts\\The Sims 4\\Mods.\n2. Положите папку DeepRelationships из этого архива в Mods.\n3. В игре включите «Пользовательский контент и моды» и «Моды сценариев».\n4. Удалите localthumbcache.package.\n5. Полностью перезапустите игру и войдите в семью.\n\nКАК ПОНЯТЬ, ЧТО МОД ЗАГРУЗИЛСЯ\nСразу после окончания загрузочного экрана должно появиться уведомление:\n«Глубокие отношения v0.2.0 — Мод успешно загружен. Анализ отношений запущен автоматически.»\n\nДИАГНОСТИКА\nВерсия v0.2.0 специально сделана как один Python-модуль. Она создаёт диагностический файл:\nDocuments\\Electronic Arts\\The Sims 4\\mod_data\\DeepRelationships\\deeprel.log\n\nВ нормальной загрузке в нём будут строки:\nSCRIPT IMPORTED\nGAME IMPORTS OK\nRELATIONSHIP OBSERVERS INSTALLED\nBOOTSTRAP HOOK INSTALLED\nZONE LOADED\nACTIVE SIM FOUND\nHOUSEHOLD FOUND DURING INIT\nNOTIFICATION SHOWN\nRELATIONSHIP ENGINE STARTED\n\nЕсли уведомления нет, пришлите deeprel.log — по нему будет видно точное место остановки.\n\nЧТО ДЕЛАЕТ ЯДРО\n— Отслеживает романтические отношения активной семьи.\n— Для каждого направления отношений хранит Любовь, Доверие, Привязанность, Совместимость и Удовлетворённость.\n— Романтика повышает любовь и удовлетворённость.\n— Положительное дружеское общение укрепляет доверие и привязанность.\n— Негативные изменения сильнее бьют по доверию и удовлетворённости.\n— Долгое отсутствие взаимодействий постепенно снижает удовлетворённость.\n— Высокая привязанность замедляет охлаждение долгих отношений.\n— Определяет состояния пары: «Медовый месяц», «Крепкая пара», «Кризис», «Недоверие», «Отдаление», «Отношения по привычке», «На грани разрыва» и др.\n— Не изменяет стандартные полоски отношений самостоятельно: система наблюдает за обычной игрой и ведёт дополнительные скрытые параметры.\n\nДополнительная диагностическая команда: deeprel.status\nДля обычной игры команды не нужны.\n'''
     path = DIST / 'README_RU.txt'
     path.write_text(text, encoding='utf-8')
     return path
@@ -71,16 +63,31 @@ def make_install_zip(ts4script, readme):
     return output
 
 
+def verify_archives(ts4script, install_zip):
+    with zipfile.ZipFile(str(ts4script), 'r') as archive:
+        names = archive.namelist()
+        if names != ['deep_relationships.pyc']:
+            raise RuntimeError('ts4script must contain exactly one module, got: {}'.format(names))
+        bad = archive.testzip()
+        if bad:
+            raise RuntimeError('Corrupt ts4script member: {}'.format(bad))
+    with zipfile.ZipFile(str(install_zip), 'r') as archive:
+        bad = archive.testzip()
+        if bad:
+            raise RuntimeError('Corrupt install archive member: {}'.format(bad))
+
+
 def main():
     clean()
-    pycs = compile_scripts()
-    verified = verify_python37(pycs)
-    script = make_ts4script(pycs)
+    pyc = compile_script()
+    magic = verify_python37(pyc)
+    script = make_ts4script(pyc)
     readme = make_readme()
     install_zip = make_install_zip(script, readme)
+    verify_archives(script, install_zip)
     print('Python:', os.sys.version)
-    for name, magic in verified:
-        print('pyc:', name, 'magic:', magic)
+    print('pyc:', pyc.name, 'magic:', magic)
+    print('ts4script members: 1')
     print('ts4script:', script)
     print('install zip:', install_zip)
     print('ts4script size:', script.stat().st_size)
