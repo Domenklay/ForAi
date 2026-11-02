@@ -2,7 +2,6 @@
 import os
 import py_compile
 import shutil
-import struct
 import zipfile
 from pathlib import Path
 
@@ -14,6 +13,7 @@ VERSION = '0.1.0'
 MOD_BASENAME = 'DeepRelationships_v{}'.format(VERSION)
 SCRIPT_NAME = MOD_BASENAME + '.ts4script'
 USER_ZIP_NAME = MOD_BASENAME + '_INSTALL.zip'
+EXPECTED_MAGIC = bytes.fromhex('420d0d0a')
 
 
 def clean():
@@ -26,25 +26,35 @@ def clean():
 def compile_scripts():
     compiled = BUILD / 'compiled'
     compiled.mkdir(parents=True, exist_ok=True)
-    source = SRC / 'deep_relationships.py'
-    target = compiled / 'deep_relationships.pyc'
-    py_compile.compile(str(source), cfile=str(target), doraise=True)
-    return target
+    outputs = []
+    for source in sorted(SRC.glob('*.py')):
+        target = compiled / (source.stem + '.pyc')
+        py_compile.compile(str(source), cfile=str(target), doraise=True)
+        outputs.append(target)
+    if not outputs:
+        raise RuntimeError('No Python sources found')
+    return outputs
 
 
-def verify_python37(pyc_path):
-    data = pyc_path.read_bytes()
-    magic = data[:4]
-    expected = bytes.fromhex('420d0d0a')
-    if magic != expected:
-        raise RuntimeError('Unexpected pyc magic: {} (expected {})'.format(magic.hex(), expected.hex()))
-    return magic.hex()
+def verify_python37(pyc_paths):
+    verified = []
+    for pyc_path in pyc_paths:
+        data = pyc_path.read_bytes()
+        magic = data[:4]
+        if magic != EXPECTED_MAGIC:
+            raise RuntimeError('Unexpected pyc magic for {}: {} (expected {})'.format(
+                pyc_path.name, magic.hex(), EXPECTED_MAGIC.hex()))
+        verified.append((pyc_path.name, magic.hex()))
+    return verified
 
 
-def make_ts4script(pyc_path):
+def make_ts4script(pyc_paths):
     output = DIST / SCRIPT_NAME
     with zipfile.ZipFile(str(output), 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.write(str(pyc_path), arcname='deep_relationships.pyc')
+        # Alphabetical order is intentional: deep_relationships loads first,
+        # zz_deep_relationships_service then moves observation to RelationshipService.
+        for pyc_path in sorted(pyc_paths, key=lambda p: p.name):
+            archive.write(str(pyc_path), arcname=pyc_path.name)
     return output
 
 
@@ -65,13 +75,14 @@ def make_install_zip(ts4script, readme):
 
 def main():
     clean()
-    pyc = compile_scripts()
-    magic = verify_python37(pyc)
-    script = make_ts4script(pyc)
+    pycs = compile_scripts()
+    verified = verify_python37(pycs)
+    script = make_ts4script(pycs)
     readme = make_readme()
     install_zip = make_install_zip(script, readme)
     print('Python:', os.sys.version)
-    print('pyc magic:', magic)
+    for name, magic in verified:
+        print('pyc:', name, 'magic:', magic)
     print('ts4script:', script)
     print('install zip:', install_zip)
     print('ts4script size:', script.stat().st_size)
