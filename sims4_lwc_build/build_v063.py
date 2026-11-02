@@ -5,7 +5,7 @@ import importlib.util
 import py_compile
 import zipfile
 
-# Trigger v0.6.3 registered workflow after CI repair.
+# Trigger active v0.6.3 workflow.
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build_v063'
 DIST = ROOT / 'dist_v063'
