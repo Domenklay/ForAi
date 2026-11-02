@@ -1,0 +1,68 @@
+name: Build Sims4 LWC Family 0.7.0
+
+on:
+  push:
+    branches:
+      - build-sims4-lwc-family-070
+    paths:
+      - 'sims4_lwc_family_build/**'
+      - '.github/workflows/build-sims4-lwc-family.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Compile and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+          mkdir -p build dist package
+          python -OO - <<'PY'
+          import importlib.util
+          import py_compile
+          import zipfile
+          from pathlib import Path
+
+          src = Path('sims4_lwc_family_build/life_with_consequences_family.py')
+          pyc = Path('build/life_with_consequences_family.pyc')
+          ts4 = Path('dist/LifeWithConsequences_Family_0.7.0_TS4_1.127.41.ts4script')
+          py_compile.compile(str(src), cfile=str(pyc), doraise=True, optimize=2)
+          with zipfile.ZipFile(str(ts4), 'w', compression=zipfile.ZIP_DEFLATED) as z:
+              z.write(str(pyc), 'life_with_consequences_family.pyc')
+          with zipfile.ZipFile(str(ts4), 'r') as z:
+              data = z.read('life_with_consequences_family.pyc')
+          print('pyc magic:', data[:4].hex(), 'runtime:', importlib.util.MAGIC_NUMBER.hex())
+          assert data[:4] == importlib.util.MAGIC_NUMBER
+
+          readme = Path('package/README_RU.txt')
+          readme.write_text(
+              'Life With Consequences — Семья и отношения v0.7.0\n'
+              'Для The Sims 4 1.127.41.1030 DX11.\n\n'
+              'Установка:\n'
+              '1. Оставьте LifeWithConsequences 0.6.5 установленным.\n'
+              '2. Положите LifeWithConsequences_Family_0.7.0_TS4_1.127.41.ts4script в Documents\\Electronic Arts\\The Sims 4\\Mods\\LifeWithConsequences.\n'
+              '3. В игре должны быть включены моды сценариев.\n\n'
+              'После загрузки семьи появится сообщение «Семья и отношения v0.7.0».\n'
+              'Система автоматически отслеживает близость, доверие, напряжение, привязанность и семейные воспоминания.\n'
+              'Крупный семейный сюжет возникает примерно раз в 3–5 игровых дней.\n'
+              'Состояние записывается в mod_data\\LifeWithConsequences\\family_state.json только при обычном сохранении игры.\n'
+              'Диагностика при необходимости: lwc.familystatus\n',
+              encoding='utf-8')
+          Path('package/' + ts4.name).write_bytes(ts4.read_bytes())
+          full = Path('dist/LifeWithConsequences_Family_0.7.0_FULL.zip')
+          with zipfile.ZipFile(str(full), 'w', compression=zipfile.ZIP_DEFLATED) as z:
+              z.write(str(Path('package') / ts4.name), ts4.name)
+              z.write(str(readme), readme.name)
+          print('built:', ts4, full)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LifeWithConsequences-Family-0.7.0
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
