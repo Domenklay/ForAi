@@ -1,4 +1,4 @@
-name: Build Sims4 LWC v0.6.1 via stable channel
+name: Build Sims4 LWC v0.6.2 via stable channel
 
 on:
   push:
@@ -6,10 +6,11 @@ on:
       - build-sims4-lwc-022
     paths:
       - '.github/workflows/build-sims4-lwc-v060.yml'
-      - 'sims4_lwc_build/build_v061.py'
-      - 'sims4_lwc_build/bundle_v061.py'
+      - 'sims4_lwc_build/build_v062.py'
+      - 'sims4_lwc_build/build_simdata_v062.cjs'
+      - 'sims4_lwc_build/bundle_v062.py'
       - 'sims4_lwc_build/lwc_v061_addon.py.txt'
-      - 'sims4_lwc_build/v061_package/**'
+      - 'sims4_lwc_build/v062_package/**'
 
 jobs:
   build:
@@ -24,7 +25,17 @@ jobs:
           python-version: '3.7'
 
       - name: Build ts4script
-        run: python sims4_lwc_build/build_v061.py
+        run: python sims4_lwc_build/build_v062.py
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate Buff SimData
+        run: |
+          npm install --no-save @s4tk/models@0.6.14
+          node sims4_lwc_build/build_simdata_v062.cjs
 
       - name: Setup dotnet
         uses: actions/setup-dotnet@v4
@@ -32,18 +43,18 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Build package
-        run: dotnet run --project sims4_lwc_build/v061_package/PackageTool.csproj --configuration Release
+        run: dotnet run --project sims4_lwc_build/v062_package/PackageTool.csproj --configuration Release
 
       - name: Bundle release
-        run: python sims4_lwc_build/bundle_v061.py
+        run: python sims4_lwc_build/bundle_v062.py
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: LifeWithConsequences-v0.6.1-FULL
+          name: LifeWithConsequences-v0.6.2-FULL
           path: |
-            dist_v061/LifeWithConsequences_0.6.1_FULL.zip
-            dist_v061/LifeWithConsequences_0.6.1_TS4_1.127.41.ts4script
-            dist_v061/LifeWithConsequences_0.6.1.package
+            dist_v062/LifeWithConsequences_0.6.2_FULL.zip
+            dist_v062/LifeWithConsequences_0.6.2_TS4_1.127.41.ts4script
+            dist_v062/LifeWithConsequences_0.6.2.package
           if-no-files-found: error
           retention-days: 1
