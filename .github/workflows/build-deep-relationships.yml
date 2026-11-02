@@ -1,0 +1,29 @@
+name: Build Deep Relationships
+
+on:
+  push:
+    branches:
+      - build/deep-relationships-v0.1
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.7.17'
+      - name: Build and verify Sims 4 script mod
+        run: python DeepRelationships/build.py
+      - name: Inspect archive
+        shell: bash
+        run: |
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.1.0.ts4script
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.1.0_INSTALL.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeepRelationships-v0.1.0
+          path: DeepRelationships/dist/*
+          if-no-files-found: error
