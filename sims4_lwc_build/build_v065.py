@@ -6,6 +6,7 @@ import py_compile
 import subprocess
 import zipfile
 
+# Trigger v0.6.5 build after workflow registration.
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build_v065'
 DIST = ROOT / 'dist_v065'
