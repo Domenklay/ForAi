@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<I c="DeepRelAdmitFaultInteraction" i="interaction" m="zzzzzz_deep_relationships_reconciliation_v050" n="DeepRelationships:AdmitFault" s="16907167177260101703">
+  <V n="_saveable" t="disabled" />
+  <T n="allow_autonomous">False</T>
+</I>
