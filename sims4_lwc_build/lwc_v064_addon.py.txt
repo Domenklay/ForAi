@@ -1,0 +1,163 @@
+# v0.6.4 immediate real-life consequences.
+MOD_VERSION = "0.6.4"
+
+LWC_BUFF_GRIEF = 533850013479795656
+
+_LWC064_LISTENER = None
+_LWC064_EVENT_MANAGER = None
+
+
+_lwc064_previous_life_apply = _life_apply
+
+
+def _life_apply(info, state, title, stress_delta, rep_delta, xp_delta, tendency=None, notify=True, summary=None):
+    result = _lwc064_previous_life_apply(
+        info, state, title, stress_delta, rep_delta, xp_delta,
+        tendency=tendency, notify=notify, summary=summary
+    )
+    if result and title == "Потеря члена семьи":
+        try:
+            _lwc061_add_moodlet(info, LWC_BUFF_GRIEF, "После потери близкого")
+        except Exception:
+            _log_exception("v0.6.4 grief moodlet failed")
+    return result
+
+
+def _lwc064_household_info(info):
+    try:
+        sid = _sim_id(info)
+        if sid is None:
+            return False
+        return int(sid) in _lwc063_household_ids()
+    except Exception:
+        return False
+
+
+def _lwc064_prepare_life_watch(info):
+    if info is None or not _lwc064_household_info(info) or not _eligible(info):
+        return False
+    try:
+        state = _state(info)
+        watch = state.get("life_watch")
+        if not isinstance(watch, dict) or not watch.get("initialized"):
+            _life_watch_init(info, state)
+        return True
+    except Exception:
+        _log_exception("v0.6.4 life baseline failed")
+        return False
+
+
+def _lwc064_check_personal(info):
+    try:
+        if not _lwc064_prepare_life_watch(info):
+            return
+        state = _state(info)
+        active = _active_sim_info()
+        _life_watch_personal(info, state, _sim_id(info) == _sim_id(active))
+        _save()
+    except Exception:
+        _log_exception("v0.6.4 immediate personal life check failed")
+
+
+def _lwc064_check_death():
+    try:
+        active = _active_sim_info()
+        active_id = _sim_id(active)
+        for info in _household_infos():
+            if not _lwc064_prepare_life_watch(info):
+                continue
+            _life_watch_family_deaths(info, _state(info), _sim_id(info) == active_id)
+        _save()
+    except Exception:
+        _log_exception("v0.6.4 immediate death check failed")
+
+
+def _lwc064_schedule_personal(sim_id):
+    try:
+        if sim_id is None:
+            return
+        sim_id = int(sim_id)
+
+        def _callback(_alarm_handle):
+            _lwc064_check_personal(_lookup_sim_info(sim_id))
+
+        alarms.add_alarm(
+            _ALARM_OWNER,
+            clock.interval_in_sim_minutes(1),
+            _callback,
+            repeating=False,
+        )
+    except Exception:
+        _log_exception("v0.6.4 personal fallback alarm failed")
+
+
+def _lwc064_schedule_death_check():
+    try:
+        def _callback(_alarm_handle):
+            _lwc064_check_death()
+
+        alarms.add_alarm(
+            _ALARM_OWNER,
+            clock.interval_in_sim_minutes(1),
+            _callback,
+            repeating=False,
+        )
+    except Exception:
+        _log_exception("v0.6.4 death fallback alarm failed")
+
+
+class _LWC064ImmediateLifeListener:
+    def handle_event(self, sim_info, event, resolver):
+        try:
+            if event is TestEvent.CareerEvent:
+                info = _lwc063_as_info(sim_info)
+                if info is not None:
+                    _lwc064_check_personal(info)
+                    _lwc064_schedule_personal(_sim_id(info))
+            elif event is TestEvent.SpouseEvent:
+                info = _lwc063_as_info(sim_info)
+                if info is not None:
+                    _lwc064_check_personal(info)
+                    _lwc064_schedule_personal(_sim_id(info))
+            elif event is TestEvent.SimDeathTypeSet:
+                _lwc064_check_death()
+                _lwc064_schedule_death_check()
+        except Exception:
+            _log_exception("v0.6.4 life event listener failed")
+
+
+def _lwc064_register_listener():
+    global _LWC064_LISTENER, _LWC064_EVENT_MANAGER
+    try:
+        event_manager = services.get_event_manager()
+        if event_manager is None:
+            return False
+        if _LWC064_LISTENER is None:
+            _LWC064_LISTENER = _LWC064ImmediateLifeListener()
+        if _LWC064_EVENT_MANAGER is event_manager:
+            return True
+        event_manager.register_single_event(_LWC064_LISTENER, TestEvent.CareerEvent)
+        event_manager.register_single_event(_LWC064_LISTENER, TestEvent.SpouseEvent)
+        event_manager.register_single_event(_LWC064_LISTENER, TestEvent.SimDeathTypeSet)
+        _LWC064_EVENT_MANAGER = event_manager
+        _log("v0.6.4 immediate life listener registered")
+        return True
+    except Exception:
+        _log_exception("v0.6.4 life listener registration failed")
+        return False
+
+
+@_inject(zone.Zone, "on_loading_screen_animation_finished")
+def _lwc064_zone_loaded(original, self, *args, **kwargs):
+    result = original(self, *args, **kwargs)
+    try:
+        _lwc064_register_listener()
+        # Establish career, spouse and family-death baselines immediately.
+        # This prevents the first real event after loading from being treated
+        # as the initial snapshot.
+        for info in _household_infos():
+            if _eligible(info):
+                _lwc064_prepare_life_watch(info)
+    except Exception:
+        _log_exception("v0.6.4 zone life initialization failed")
+    return result
