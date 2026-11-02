@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Deep Relationships / Глубокие отношения v0.2.0
+"""Deep Relationships / Глубокие отношения v0.3.0
 Target: The Sims 4 1.127.x / Python 3.7.
-Single-file diagnostic build with direct zone bootstrap.
+Standalone script + tiny tuning package. No external libraries required.
 """
 
 import json
@@ -9,8 +9,9 @@ import os
 import traceback
 from functools import wraps
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 MOD_NAME = 'Глубокие отношения'
+VIEW_INTERACTION_ID = 16907167177260101633
 
 
 def _ts4_root_from_script():
@@ -37,7 +38,7 @@ def _ts4_root_from_script():
 TS4_ROOT = _ts4_root_from_script()
 DATA_DIR = os.path.join(TS4_ROOT, 'mod_data', 'DeepRelationships')
 LOG_PATH = os.path.join(DATA_DIR, 'deeprel.log')
-STATE_PATH = os.path.join(DATA_DIR, 'deep_relationships_v2.json')
+STATE_PATH = os.path.join(DATA_DIR, 'deep_relationships_state.json')
 
 
 def _ensure_data_dir():
@@ -69,11 +70,17 @@ try:
     import sims4.commands
     import sims4.log
     import zone
+    from event_testing.results import TestResult
+    from interactions import ParticipantType
+    from interactions.base.super_interaction import SuperInteraction
+    from interactions.constraints import Anywhere
     from relationships.relationship_service import RelationshipService
     from relationships.relationship_track import RelationshipTrack
-    from services.persistence_service import PersistenceService
+    from sims.sim import Sim
     from sims4.localization import LocalizationHelperTuning
+    from sims4.utils import flexmethod
     from singletons import DEFAULT
+    from ui.ui_dialog import UiDialogOk
     from ui.ui_dialog_notification import UiDialogNotification
     try:
         from distributor.shared_messages import IconInfoData
@@ -86,7 +93,7 @@ except Exception:
     raise
 
 logger = sims4.log.Logger('DeepRelationships', default_owner='DeepRelationships')
-STATE = {'version': 2, 'slots': {}}
+STATE = {'version': 3, 'slots': {}}
 STATE_LOADED = False
 DIRTY = False
 ALARM = None
@@ -154,6 +161,7 @@ def load_state():
             data = json.load(handle)
         if isinstance(data, dict) and isinstance(data.get('slots'), dict):
             STATE = data
+            STATE['version'] = 3
         flog('STATE LOADED')
     except Exception:
         flog('STATE LOAD FAILED')
@@ -210,10 +218,13 @@ def full_name(sim_info):
             return str(value)
     except Exception:
         pass
-    return '{} {}'.format(getattr(sim_info, 'first_name', '') or '', getattr(sim_info, 'last_name', '') or '').strip() or 'Сим'
+    return '{} {}'.format(
+        getattr(sim_info, 'first_name', '') or '',
+        getattr(sim_info, 'last_name', '') or ''
+    ).strip() or 'Сим'
 
 
-def notify(title, text):
+def notify(title, text, icon_sim=None):
     sim = active_sim()
     if sim is None:
         flog('NOTIFICATION SKIPPED: active sim not found')
@@ -224,9 +235,10 @@ def notify(title, text):
             title=lambda **_: LocalizationHelperTuning.get_raw_text(str(title)),
             text=lambda **_: LocalizationHelperTuning.get_raw_text(str(text))
         )
+        icon_object = icon_sim if icon_sim is not None else sim
         if IconInfoData is not None:
             try:
-                dialog.show_dialog(icon_override=IconInfoData(obj_instance=sim))
+                dialog.show_dialog(icon_override=IconInfoData(obj_instance=icon_object))
             except Exception:
                 dialog.show_dialog()
         else:
@@ -235,6 +247,26 @@ def notify(title, text):
         return True
     except Exception:
         flog('NOTIFICATION FAILED')
+        flog(traceback.format_exc())
+        return False
+
+
+def show_ok_dialog(title, text, sim=None):
+    if sim is None:
+        sim = active_sim()
+    if sim is None:
+        return False
+    try:
+        dialog = UiDialogOk.TunableFactory().default(
+            sim,
+            title=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text(str(title)),
+            text=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text(str(text)),
+            text_ok=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text('Закрыть')
+        )
+        dialog.show_dialog()
+        return True
+    except Exception:
+        flog('OK DIALOG FAILED')
         flog(traceback.format_exc())
         return False
 
@@ -264,14 +296,16 @@ def scores(source, target_id):
     friendship = 0.0
     romance = 0.0
     try:
-        friendship = float(source.relationship_tracker.get_relationship_score(target_id, RelationshipTrack.FRIENDSHIP_TRACK))
+        friendship = float(source.relationship_tracker.get_relationship_score(
+            target_id, RelationshipTrack.FRIENDSHIP_TRACK))
     except Exception:
         try:
             friendship = float(source.relationship_tracker.get_relationship_score(target_id))
         except Exception:
             pass
     try:
-        romance = float(source.relationship_tracker.get_relationship_score(target_id, RelationshipTrack.ROMANCE_TRACK))
+        romance = float(source.relationship_tracker.get_relationship_score(
+            target_id, RelationshipTrack.ROMANCE_TRACK))
     except Exception:
         pass
     return friendship, romance
@@ -319,6 +353,19 @@ def state_name(record):
     return 'Развивающиеся отношения'
 
 
+def level_name(value):
+    value = clamp(value)
+    if value >= 85:
+        return 'очень высокая'
+    if value >= 70:
+        return 'высокая'
+    if value >= 50:
+        return 'средняя'
+    if value >= 30:
+        return 'низкая'
+    return 'очень низкая'
+
+
 def make_record(source, target, friendship, romance):
     positive_friendship = max(0.0, friendship)
     positive_romance = max(0.0, romance)
@@ -358,7 +405,8 @@ def ensure_pair(source_id, target_id, force=False):
         record = make_record(source, target, friendship, romance)
         relationships[key] = record
         DIRTY = True
-        flog('PAIR CREATED: {} -> {} | {}'.format(full_name(source), full_name(target), record['last_state']))
+        flog('PAIR CREATED: {} -> {} | {}'.format(
+            full_name(source), full_name(target), record['last_state']))
     return record
 
 
@@ -399,10 +447,12 @@ def update_state(record):
         try:
             hh = household()
             if hh is not None and source in sims_in_household(hh):
-                notify(MOD_NAME, '{}: отношения с {} теперь — «{}».'.format(full_name(source), full_name(target), new))
+                notify(MOD_NAME, '{}: отношения с {} теперь — «{}».'.format(
+                    full_name(source), full_name(target), new))
         except Exception:
             pass
-        flog('STATE CHANGE: {} -> {} : {} -> {}'.format(source_id, target_id, old, new))
+        flog('STATE CHANGE: {} -> {} : {} -> {}'.format(
+            source_id, target_id, old, new))
 
 
 def on_relationship_delta(source_id, target_id, delta, kind):
@@ -416,7 +466,6 @@ def on_relationship_delta(source_id, target_id, delta, kind):
     record = ensure_pair(source_id, target_id, force=(kind == 'romance'))
     if record is None:
         return
-
     record['quiet_steps'] = 0
     if kind == 'romance':
         if delta > 0:
@@ -442,6 +491,7 @@ def on_relationship_delta(source_id, target_id, delta, kind):
             record['compatibility'] = clamp(record['compatibility'] + max(-0.20, delta * 0.012))
     DIRTY = True
     update_state(record)
+    save_state(False)
 
 
 def decay_tick():
@@ -453,16 +503,157 @@ def decay_tick():
         if quiet >= 8:
             attachment = clamp(record.get('attachment', 0))
             protection = min(0.65, attachment / 150.0)
-            record['satisfaction'] = clamp(record.get('satisfaction', 0) - 0.60 * (1.0 - protection))
+            record['satisfaction'] = clamp(
+                record.get('satisfaction', 0) - 0.60 * (1.0 - protection))
             if quiet >= 16:
                 record['attachment'] = clamp(record.get('attachment', 0) - 0.12)
             if quiet >= 24:
                 record['love'] = clamp(record.get('love', 0) - 0.08)
-            DIRTY = True
             update_state(record)
+        DIRTY = True
+    save_state(False)
 
 
-def _track_kind(track):
+def record_text(source, target, record):
+    if record is None:
+        return '{} → {}\nНет отслеживаемых романтических отношений.'.format(
+            full_name(source), full_name(target))
+    return (
+        '{} → {}\n'
+        'Состояние: {}\n'
+        'Любовь: {} ({:.0f})\n'
+        'Доверие: {} ({:.0f})\n'
+        'Привязанность: {} ({:.0f})\n'
+        'Совместимость: {} ({:.0f})\n'
+        'Удовлетворённость: {} ({:.0f})'
+    ).format(
+        full_name(source), full_name(target), state_name(record),
+        level_name(record.get('love', 0)), record.get('love', 0),
+        level_name(record.get('trust', 0)), record.get('trust', 0),
+        level_name(record.get('attachment', 0)), record.get('attachment', 0),
+        level_name(record.get('compatibility', 0)), record.get('compatibility', 0),
+        level_name(record.get('satisfaction', 0)), record.get('satisfaction', 0)
+    )
+
+
+def show_relationship_report(actor, target):
+    try:
+        actor_info = getattr(actor, 'sim_info', actor)
+        target_info = getattr(target, 'sim_info', target)
+        if actor_info is None or target_info is None:
+            return False
+        if int(actor_info.sim_id) == int(target_info.sim_id):
+            return False
+        first = ensure_pair(actor_info.sim_id, target_info.sim_id)
+        second = ensure_pair(target_info.sim_id, actor_info.sim_id)
+        if first is None and second is None:
+            notify(
+                MOD_NAME,
+                'Между {} и {} пока нет отслеживаемых романтических отношений.'.format(
+                    full_name(actor_info), full_name(target_info)),
+                icon_sim=target
+            )
+            return False
+        save_state(True)
+        body = '{}\n\n{}'.format(
+            record_text(actor_info, target_info, first),
+            record_text(target_info, actor_info, second)
+        )
+        title = 'Наши отношения: {} и {}'.format(
+            full_name(actor_info), full_name(target_info))
+        flog('RELATIONSHIP REPORT OPENED: {} <-> {}'.format(
+            actor_info.sim_id, target_info.sim_id))
+        return show_ok_dialog(title, body, actor)
+    except Exception:
+        flog('RELATIONSHIP REPORT FAILED')
+        flog(traceback.format_exc())
+        return False
+
+
+class DeepRelationshipViewInteraction(SuperInteraction):
+    @flexmethod
+    def get_name(cls, inst, *args, **kwargs):
+        return LocalizationHelperTuning.get_raw_text('Наши отношения')
+
+    @classmethod
+    def _test(cls, target, context, **kwargs):
+        result = super()._test(target, context, **kwargs)
+        if not result:
+            return result
+        try:
+            actor = getattr(context, 'sim', None)
+            if actor is None or target is None or actor is target:
+                return TestResult(False)
+            actor_info = getattr(actor, 'sim_info', None)
+            target_info = getattr(target, 'sim_info', None)
+            if actor_info is None or target_info is None:
+                return TestResult(False)
+            _, romance = scores(actor_info, target_info.sim_id)
+            if not romantic_context(actor_info, target_info.sim_id, romance):
+                return TestResult(False)
+        except Exception:
+            return TestResult(False)
+        return TestResult.TRUE
+
+    @flexmethod
+    def _constraint_gen(cls, inst, sim, target, participant_type, **kwargs):
+        yield Anywhere()
+
+    def _run_interaction_gen(self, timeline):
+        yield from ()
+        actor = getattr(self, 'sim', None)
+        target = getattr(self, 'target', None)
+        return bool(show_relationship_report(actor, target))
+
+
+def install_view_interaction(sim):
+    try:
+        affordance = services.affordance_manager().get(VIEW_INTERACTION_ID)
+        if affordance is None:
+            flog('UI TUNING NOT LOADED: {}'.format(VIEW_INTERACTION_ID))
+            return False
+        current = tuple(getattr(sim, '_super_affordances', ()))
+        if affordance not in current:
+            sim._super_affordances = current + (affordance,)
+            flog('UI AFFORDANCE ADDED TO SIM: {}'.format(getattr(sim, 'id', '?')))
+        return True
+    except Exception:
+        flog('UI AFFORDANCE INSTALL FAILED')
+        flog(traceback.format_exc())
+        return False
+
+
+def install_ui_on_instanced_sims():
+    installed = 0
+    try:
+        manager = services.sim_info_manager()
+        if manager is not None:
+            for sim in manager.instanced_sims_gen():
+                if install_view_interaction(sim):
+                    installed += 1
+    except Exception:
+        flog('UI EXISTING SIM INSTALL FAILED')
+        flog(traceback.format_exc())
+    flog('UI EXISTING SIMS CHECKED: {}'.format(installed))
+    return installed
+
+
+_ORIGINAL_SIM_ON_ADD = Sim.on_add
+
+
+def _deeprel_sim_on_add(self, *args, **kwargs):
+    result = _ORIGINAL_SIM_ON_ADD(self, *args, **kwargs)
+    install_view_interaction(self)
+    return result
+
+
+if not getattr(Sim.on_add, '_deeprel_ui_wrapped', False):
+    _deeprel_sim_on_add._deeprel_ui_wrapped = True
+    Sim.on_add = _deeprel_sim_on_add
+    flog('UI SIM.ON_ADD HOOK INSTALLED')
+
+
+def relationship_kind(track):
     if track is DEFAULT:
         return 'friendship'
     try:
@@ -475,25 +666,28 @@ def _track_kind(track):
     return None
 
 
-def inject_to(obj, name, marker):
+def inject_to(obj, name, flag):
     def decorator(new):
         old = getattr(obj, name)
-        if getattr(old, marker, False):
+        if getattr(old, flag, False):
             return new
         @wraps(old)
         def wrapped(*args, **kwargs):
             return new(old, *args, **kwargs)
-        setattr(wrapped, marker, True)
+        setattr(wrapped, flag, True)
         setattr(obj, name, wrapped)
         return new
     return decorator
 
 
-@inject_to(RelationshipService, 'add_relationship_score', '_deeprel_v2_add')
-def observe_add(original, self, sim_id_a, sim_id_b, increment, track=DEFAULT, threshold=None, **kwargs):
-    result = original(self, sim_id_a, sim_id_b, increment, track=track, threshold=threshold, **kwargs)
+@inject_to(RelationshipService, 'add_relationship_score', '_deeprel_add_wrapped')
+def _observe_add(original, self, sim_id_a, sim_id_b, increment,
+                 track=DEFAULT, threshold=None, **kwargs):
+    result = original(
+        self, sim_id_a, sim_id_b, increment,
+        track=track, threshold=threshold, **kwargs)
     try:
-        kind = _track_kind(track)
+        kind = relationship_kind(track)
         if kind is not None:
             on_relationship_delta(sim_id_a, sim_id_b, increment, kind)
     except Exception:
@@ -502,16 +696,19 @@ def observe_add(original, self, sim_id_a, sim_id_b, increment, track=DEFAULT, th
     return result
 
 
-@inject_to(RelationshipService, 'set_relationship_score', '_deeprel_v2_set')
-def observe_set(original, self, sim_id_a, sim_id_b, value, track=DEFAULT, threshold=None, **kwargs):
-    kind = _track_kind(track)
+@inject_to(RelationshipService, 'set_relationship_score', '_deeprel_set_wrapped')
+def _observe_set(original, self, sim_id_a, sim_id_b, value,
+                 track=DEFAULT, threshold=None, **kwargs):
+    kind = relationship_kind(track)
     before = None
     if kind is not None:
         try:
             before = float(self.get_relationship_score(sim_id_a, sim_id_b, track=track))
         except Exception:
             before = None
-    result = original(self, sim_id_a, sim_id_b, value, track=track, threshold=threshold, **kwargs)
+    result = original(
+        self, sim_id_a, sim_id_b, value,
+        track=track, threshold=threshold, **kwargs)
     if kind is not None and before is not None:
         try:
             after = float(self.get_relationship_score(sim_id_a, sim_id_b, track=track))
@@ -529,12 +726,10 @@ flog('RELATIONSHIP OBSERVERS INSTALLED')
 
 def alarm_callback(_):
     try:
-        flog('PERIODIC TICK')
         scan_active_household()
         decay_tick()
-        save_state(force=True)
     except Exception:
-        flog('PERIODIC TICK FAILED')
+        flog('ALARM UPDATE FAILED')
         flog(traceback.format_exc())
 
 
@@ -548,82 +743,84 @@ def start_alarm():
     try:
         ALARM = alarms.add_alarm(
             ALARM_OWNER,
-            date_and_time.create_time_span(minutes=30),
+            date_and_time.create_time_span(minutes=15),
             alarm_callback,
             repeating=True,
             repeating_time_span=date_and_time.create_time_span(hours=6)
         )
         flog('ALARM STARTED')
+        return True
     except Exception:
         flog('ALARM START FAILED')
         flog(traceback.format_exc())
+        return False
 
 
 def initialize_zone():
     global NOTICE_SHOWN
     flog('ZONE LOADED')
     sim = active_sim()
-    if sim is None:
-        flog('ACTIVE SIM NOT FOUND')
+    if sim is not None:
+        flog('ACTIVE SIM FOUND: {}'.format(full_name(getattr(sim, 'sim_info', None))))
     else:
-        flog('ACTIVE SIM FOUND: {}'.format(full_name(getattr(sim, 'sim_info', None) or sim)))
-
-    # Show the startup notice before the relationship engine does any heavy work.
+        flog('ACTIVE SIM NOT FOUND DURING INIT')
+    hh = household()
+    if hh is not None:
+        flog('HOUSEHOLD FOUND DURING INIT')
+    else:
+        flog('HOUSEHOLD NOT FOUND DURING INIT')
+    ui_count = install_ui_on_instanced_sims()
     if not NOTICE_SHOWN:
-        if notify('Глубокие отношения v{}'.format(VERSION), 'Мод успешно загружен. Анализ отношений запущен автоматически.'):
-            NOTICE_SHOWN = True
-
-    try:
-        load_state()
-        hh = household()
-        if hh is None:
-            flog('HOUSEHOLD NOT FOUND DURING INIT')
+        NOTICE_SHOWN = True
+        affordance = None
+        try:
+            affordance = services.affordance_manager().get(VIEW_INTERACTION_ID)
+        except Exception:
+            pass
+        if affordance is not None:
+            notify(
+                '{} v{}'.format(MOD_NAME, VERSION),
+                'Мод успешно загружен. Меню «Наши отношения» подключено. Нажмите на романтического партнёра, чтобы посмотреть состояние пары.'
+            )
         else:
-            flog('HOUSEHOLD FOUND DURING INIT')
-        scan_active_household()
-        save_state(force=True)
-        start_alarm()
-        flog('RELATIONSHIP ENGINE STARTED: {} tracked directions'.format(len(slot_state())))
-    except Exception:
-        flog('RELATIONSHIP ENGINE INIT FAILED')
-        flog(traceback.format_exc())
-
-
-@inject_to(zone.Zone, 'on_loading_screen_animation_finished', '_deeprel_v2_zone')
-def on_loading_finished(original, self, *args, **kwargs):
-    result = original(self, *args, **kwargs)
+            notify(
+                '{} v{}'.format(MOD_NAME, VERSION),
+                'Скрипт загрузился, но DeepRelationships_v0.3.0.package не найден. Просмотр отношений в меню не появится.'
+            )
     try:
-        initialize_zone()
+        scan_active_household()
+        save_state(True)
+        start_alarm()
+        flog('RELATIONSHIP ENGINE STARTED')
+        flog('UI INSTALLED COUNT: {}'.format(ui_count))
     except Exception:
-        flog('ZONE HOOK FAILED')
+        flog('ENGINE INIT FAILED')
         flog(traceback.format_exc())
+
+
+@inject_to(zone.Zone, 'on_loading_screen_animation_finished', '_deeprel_zone_wrapped')
+def _on_zone_loaded(original, self, *args, **kwargs):
+    result = original(self, *args, **kwargs)
+    initialize_zone()
     return result
 
 
-@inject_to(PersistenceService, 'save_game_gen', '_deeprel_v2_save')
-def on_save(original, self, timeline, save_game_data, send_save_message=True, check_cooldown=False):
-    try:
-        scan_active_household()
-        save_state(force=True)
-        flog('GAME SAVE HOOK OK')
-    except Exception:
-        flog('GAME SAVE HOOK FAILED')
-        flog(traceback.format_exc())
-    return original(self, timeline, save_game_data, send_save_message=send_save_message, check_cooldown=check_cooldown)
+flog('BOOTSTRAP HOOK INSTALLED')
 
 
 @sims4.commands.Command('deeprel.status', command_type=sims4.commands.CommandType.Live)
 def deeprel_status(_connection=None):
     output = sims4.commands.CheatOutput(_connection)
     try:
-        rels = slot_state()
-        output('Deep Relationships v{} | slot {} | tracked {}'.format(VERSION, slot_id(), len(rels)))
-        output('Log: {}'.format(LOG_PATH))
+        scan_active_household()
+        ui_ok = services.affordance_manager().get(VIEW_INTERACTION_ID) is not None
+        output('Deep Relationships v{} | slot {} | tracked directions {} | UI tuning {}'.format(
+            VERSION, slot_id(), len(slot_state()), 'OK' if ui_ok else 'MISSING'))
         return True
     except Exception as exc:
         output('Deep Relationships status error: {}'.format(exc))
         return False
 
 
-flog('BOOTSTRAP HOOK INSTALLED')
 logger.info('Deep Relationships v{} imported.'.format(VERSION))
+flog('SCRIPT INITIALIZATION COMPLETE')
