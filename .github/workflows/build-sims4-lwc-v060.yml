@@ -1,4 +1,4 @@
-name: Build Sims4 LWC v0.6.2 via stable channel
+name: Build Sims4 LWC v0.6.3 immediate moodlets
 
 on:
   push:
@@ -6,10 +6,10 @@ on:
       - build-sims4-lwc-022
     paths:
       - '.github/workflows/build-sims4-lwc-v060.yml'
-      - 'sims4_lwc_build/build_v062.py'
+      - 'sims4_lwc_build/build_v063.py'
+      - 'sims4_lwc_build/bundle_v063.py'
+      - 'sims4_lwc_build/lwc_v063_addon.py.txt'
       - 'sims4_lwc_build/build_simdata_v062.cjs'
-      - 'sims4_lwc_build/bundle_v062.py'
-      - 'sims4_lwc_build/lwc_v061_addon.py.txt'
       - 'sims4_lwc_build/v062_package/**'
 
 jobs:
@@ -24,8 +24,8 @@ jobs:
         with:
           python-version: '3.7'
 
-      - name: Build ts4script
-        run: python sims4_lwc_build/build_v062.py
+      - name: Build v0.6.3 ts4script
+        run: python sims4_lwc_build/build_v063.py
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -42,19 +42,24 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Build package
+      - name: Rebuild validated moodlet package
         run: dotnet run --project sims4_lwc_build/v062_package/PackageTool.csproj --configuration Release
 
+      - name: Promote package to v0.6.3
+        run: |
+          mkdir -p dist_v063
+          cp dist_v062/LifeWithConsequences_0.6.2.package dist_v063/LifeWithConsequences_0.6.3.package
+
       - name: Bundle release
-        run: python sims4_lwc_build/bundle_v062.py
+        run: python sims4_lwc_build/bundle_v063.py
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: LifeWithConsequences-v0.6.2-FULL
+          name: LifeWithConsequences-v0.6.3-FULL
           path: |
-            dist_v062/LifeWithConsequences_0.6.2_FULL.zip
-            dist_v062/LifeWithConsequences_0.6.2_TS4_1.127.41.ts4script
-            dist_v062/LifeWithConsequences_0.6.2.package
+            dist_v063/LifeWithConsequences_0.6.3_FULL.zip
+            dist_v063/LifeWithConsequences_0.6.3_TS4_1.127.41.ts4script
+            dist_v063/LifeWithConsequences_0.6.3.package
           if-no-files-found: error
           retention-days: 1
