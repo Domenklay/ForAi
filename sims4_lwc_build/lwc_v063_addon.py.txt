@@ -1,0 +1,183 @@
+# v0.6.3 immediate relationship consequences.
+MOD_VERSION = "0.6.3"
+
+from event_testing.test_events import TestEvent
+
+_LWC063_LISTENER = None
+_LWC063_EVENT_MANAGER = None
+
+
+def _lwc063_as_info(value):
+    if value is None:
+        return None
+    try:
+        if getattr(value, "relationship_tracker", None) is not None:
+            return value
+    except Exception:
+        pass
+    try:
+        return getattr(value, "sim_info", None)
+    except Exception:
+        return None
+
+
+def _lwc063_household_ids():
+    result = set()
+    try:
+        for info in _household_infos():
+            sid = _sim_id(info)
+            if sid is not None:
+                result.add(int(sid))
+    except Exception:
+        pass
+    return result
+
+
+def _lwc063_check_pair(actor_id, target_id):
+    try:
+        household_ids = _lwc063_household_ids()
+        seen = set()
+        for sid in (actor_id, target_id):
+            if sid is None:
+                continue
+            sid = int(sid)
+            if sid in seen or sid not in household_ids:
+                continue
+            seen.add(sid)
+            info = _lookup_sim_info(sid)
+            if info is None or not _eligible(info):
+                continue
+            _lwc060_watch_tick(info, _state(info))
+    except Exception:
+        _log_exception("v0.6.3 immediate relationship check failed")
+
+
+def _lwc063_schedule_pair(actor_id, target_id):
+    try:
+        if actor_id is None or target_id is None:
+            return
+
+        def _callback(_alarm_handle):
+            _lwc063_check_pair(actor_id, target_id)
+
+        alarms.add_alarm(
+            _ALARM_OWNER,
+            clock.interval_in_sim_minutes(1),
+            _callback,
+            repeating=False,
+        )
+    except Exception:
+        _log_exception("v0.6.3 immediate fallback alarm failed")
+
+
+def _lwc063_interaction_name(interaction):
+    parts = []
+    try:
+        affordance = getattr(interaction, "affordance", None)
+        if affordance is None:
+            getter = getattr(interaction, "get_interaction_type", None)
+            if getter is not None:
+                affordance = getter()
+        if affordance is not None:
+            parts.append(getattr(affordance, "__name__", ""))
+            parts.append(getattr(affordance, "__qualname__", ""))
+            parts.append(str(affordance))
+    except Exception:
+        pass
+    try:
+        parts.append(type(interaction).__name__)
+    except Exception:
+        pass
+    return " ".join(part for part in parts if part).lower()
+
+
+def _lwc063_direct_fight_moodlet(actor_info, target_info, interaction):
+    try:
+        name = _lwc063_interaction_name(interaction)
+        if "fight" not in name:
+            return False
+        household_ids = _lwc063_household_ids()
+        applied = False
+        for info in (actor_info, target_info):
+            sid = _sim_id(info)
+            if sid is None or int(sid) not in household_ids:
+                continue
+            if _lwc061_add_moodlet(info, LWC_BUFF_AFTER_FIGHT, "После драки"):
+                applied = True
+        if applied:
+            _log("v0.6.3 fight moodlet applied directly from InteractionComplete: {}".format(name))
+        return applied
+    except Exception:
+        _log_exception("v0.6.3 direct fight moodlet failed")
+        return False
+
+
+class _LWC063ImmediateRelationshipListener:
+    def handle_event(self, sim_info, event, resolver):
+        try:
+            interaction = getattr(resolver, "interaction", None)
+            if interaction is None:
+                return
+
+            actor_info = _lwc063_as_info(sim_info)
+            target_info = _lwc063_as_info(getattr(interaction, "target", None))
+            actor_id = _sim_id(actor_info)
+            target_id = _sim_id(target_info)
+
+            # Only Sim-to-Sim interactions matter here. This prevents the event
+            # listener from scanning relationships for ordinary object actions.
+            if actor_id is None or target_id is None or int(actor_id) == int(target_id):
+                return
+
+            _lwc063_check_pair(actor_id, target_id)
+
+            if event is TestEvent.InteractionStart:
+                # Some temporary relationship bits appear just after the start
+                # event. A one-Sim-minute recheck catches them without an hourly
+                # delay and without polling the whole household.
+                _lwc063_schedule_pair(actor_id, target_id)
+            elif event is TestEvent.InteractionComplete:
+                # Fight tuning can remove its temporary relationship bit at the
+                # very end, so also recognize the completed affordance itself.
+                _lwc063_direct_fight_moodlet(actor_info, target_info, interaction)
+        except Exception:
+            _log_exception("v0.6.3 interaction event listener failed")
+
+
+def _lwc063_register_listener():
+    global _LWC063_LISTENER, _LWC063_EVENT_MANAGER
+    try:
+        event_manager = services.get_event_manager()
+        if event_manager is None:
+            return False
+        if _LWC063_LISTENER is None:
+            _LWC063_LISTENER = _LWC063ImmediateRelationshipListener()
+        if _LWC063_EVENT_MANAGER is event_manager:
+            return True
+        event_manager.register_single_event(_LWC063_LISTENER, TestEvent.InteractionStart)
+        event_manager.register_single_event(_LWC063_LISTENER, TestEvent.InteractionComplete)
+        _LWC063_EVENT_MANAGER = event_manager
+        _log("v0.6.3 immediate relationship listener registered")
+        return True
+    except Exception:
+        _log_exception("v0.6.3 listener registration failed")
+        return False
+
+
+@_inject(zone.Zone, "on_loading_screen_animation_finished")
+def _lwc063_zone_loaded(original, self, *args, **kwargs):
+    result = original(self, *args, **kwargs)
+    try:
+        _lwc063_register_listener()
+        # Establish the relationship baseline immediately after loading so the
+        # first fight/social interaction of the session cannot be swallowed as
+        # an initialization snapshot.
+        for info in _household_infos():
+            if _eligible(info):
+                state = _state(info)
+                watch = state.get("relationship_watch")
+                if not isinstance(watch, dict) or not watch.get("initialized"):
+                    _lwc060_watch_tick(info, state)
+    except Exception:
+        _log_exception("v0.6.3 zone initialization failed")
+    return result
