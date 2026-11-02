@@ -3,7 +3,7 @@ name: Build Deep Relationships
 on:
   push:
     branches:
-      - build/deep-relationships-v0.4.0
+      - build/deep-relationships-v0.4.1-moodlets
   workflow_dispatch:
 
 jobs:
@@ -20,17 +20,18 @@ jobs:
       - name: Inspect artifacts
         shell: bash
         run: |
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.4.0.ts4script
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.4.0_INSTALL.zip
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.4.1.ts4script
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.4.1_INSTALL.zip
           python - <<'PY'
           from pathlib import Path
           import struct
-          p=Path('DeepRelationships/dist/DeepRelationships_v0.4.0.package').read_bytes()
+          p=Path('DeepRelationships/dist/DeepRelationships_v0.4.1.package').read_bytes()
           assert p[:4] == b'DBPF'
-          print('package resource count:', struct.unpack_from('<I', p, 36)[0])
+          assert struct.unpack_from('<I', p, 0x24)[0] == 13
+          print('package resource count:', struct.unpack_from('<I', p, 0x24)[0])
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: DeepRelationships-v0.4.0
+          name: DeepRelationships-v0.4.1
           path: DeepRelationships/dist/*
           if-no-files-found: error
