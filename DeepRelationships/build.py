@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 BUILD = ROOT / 'build'
 DIST = ROOT / 'dist'
-VERSION = '0.4.6'
+VERSION = '0.5.0'
 SCRIPT_NAME = 'DeepRelationships_v{}.ts4script'.format(VERSION)
 EXPECTED_MAGIC = bytes.fromhex('420d0d0a')
 EXPECTED_MODULES = [
@@ -18,6 +18,7 @@ EXPECTED_MODULES = [
     'zzy_deep_relationships_moodlets.pyc',
     'zzzz_deep_relationships_persistence_v045.pyc',
     'zzzzz_deep_relationships_core_v046.pyc',
+    'zzzzzz_deep_relationships_reconciliation_v050.pyc',
 ]
 SOURCE_NAMES = [
     'deep_relationships.py',
@@ -25,6 +26,7 @@ SOURCE_NAMES = [
     'zzy_deep_relationships_moodlets.py',
     'zzzz_deep_relationships_persistence_v045.py',
     'zzzzz_deep_relationships_core_v046.py',
+    'zzzzzz_deep_relationships_reconciliation_v050.py',
 ]
 
 
