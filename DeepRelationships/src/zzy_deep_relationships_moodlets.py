@@ -2,9 +2,7 @@
 """Deep Relationships v0.4.2 — expanded visible relationship moodlets."""
 
 import traceback
-
 import sims4.resources
-
 import deep_relationships as base
 import zz_deep_relationships_grievances as grievances
 
@@ -29,21 +27,12 @@ BUFF_UNSTABLE_RELATIONSHIP = 12004666048318715110
 BUFF_ON_VERGE_BREAKUP = 12004666048318715111
 
 ALL_BUFFS = (
-    BUFF_LIGHT_IRRITATION,
-    BUFF_ACCUMULATED_RESENTMENT,
-    BUFF_SERIOUS_CONFLICT,
-    BUFF_DEEP_HURT,
-    BUFF_BETRAYED_TRUST,
-    BUFF_JEALOUSY,
-    BUFF_LOSS_OF_CONFIDENCE,
-    BUFF_LACK_OF_ATTENTION,
-    BUFF_LONELY_IN_RELATIONSHIP,
-    BUFF_UNMET_EXPECTATIONS,
-    BUFF_READY_TO_FORGIVE,
-    BUFF_SECOND_CHANCE,
-    BUFF_CLOSENESS,
-    BUFF_HAPPY_RELATIONSHIP,
-    BUFF_UNSTABLE_RELATIONSHIP,
+    BUFF_LIGHT_IRRITATION, BUFF_ACCUMULATED_RESENTMENT, BUFF_SERIOUS_CONFLICT,
+    BUFF_DEEP_HURT, BUFF_BETRAYED_TRUST, BUFF_JEALOUSY,
+    BUFF_LOSS_OF_CONFIDENCE, BUFF_LACK_OF_ATTENTION,
+    BUFF_LONELY_IN_RELATIONSHIP, BUFF_UNMET_EXPECTATIONS,
+    BUFF_READY_TO_FORGIVE, BUFF_SECOND_CHANCE, BUFF_CLOSENESS,
+    BUFF_HAPPY_RELATIONSHIP, BUFF_UNSTABLE_RELATIONSHIP,
     BUFF_ON_VERGE_BREAKUP,
 )
 
@@ -110,7 +99,7 @@ def _desired_for_record(record):
     desired = set()
     r = m['resentment']
 
-    # Conflict ladder: one moodlet at a time.
+    # 1. Conflict ladder — exactly one.
     if r >= 70:
         desired.add(BUFF_DEEP_HURT)
     elif r >= 45:
@@ -120,7 +109,7 @@ def _desired_for_record(record):
     elif r >= 8:
         desired.add(BUFF_LIGHT_IRRITATION)
 
-    # Trust and betrayal.
+    # 2. Trust and betrayal.
     if m['infidelity'] >= 1:
         desired.add(BUFF_BETRAYED_TRUST)
         if m['trust'] < 55 or m['romantic_hurt'] >= 10:
@@ -131,23 +120,24 @@ def _desired_for_record(record):
     if m['love'] >= 25 and (m['trust'] < 40 or m['satisfaction'] < 30):
         desired.add(BUFF_LOSS_OF_CONFIDENCE)
 
-    # Attention and expectations.
-    if m['neglect'] >= 4 or m['quiet_steps'] >= 12:
-        desired.add(BUFF_LACK_OF_ATTENTION)
+    # 3. Attention — loneliness replaces simple lack of attention when severe.
     if (m['neglect'] >= 12 or m['quiet_steps'] >= 20) and m['attachment'] >= 40:
         desired.add(BUFF_LONELY_IN_RELATIONSHIP)
+    elif m['neglect'] >= 4 or m['quiet_steps'] >= 12:
+        desired.add(BUFF_LACK_OF_ATTENTION)
+
     if m['compatibility'] < 42 and m['satisfaction'] < 48 and m['love'] >= 25:
         desired.add(BUFF_UNMET_EXPECTATIONS)
 
-    # Reconciliation and positive recovery.
-    if 8 <= r < 35 and m['love'] >= 60 and m['trust'] >= 35:
-        desired.add(BUFF_READY_TO_FORGIVE)
-    if 1 <= r < 25 and m['love'] >= 65 and m['satisfaction'] >= 40 and m['trust'] >= 40:
-        desired.add(BUFF_SECOND_CHANCE)
+    # 4. Recovery — exactly one stage.
     if r < 8 and m['love'] >= 65 and m['trust'] >= 60 and m['attachment'] >= 55 and m['satisfaction'] >= 55:
         desired.add(BUFF_CLOSENESS)
+    elif 1 <= r < 25 and m['love'] >= 65 and m['satisfaction'] >= 40 and m['trust'] >= 40:
+        desired.add(BUFF_SECOND_CHANCE)
+    elif 8 <= r < 35 and m['love'] >= 60 and m['trust'] >= 35:
+        desired.add(BUFF_READY_TO_FORGIVE)
 
-    # Overall relationship condition.
+    # 5. Overall relationship condition — exactly one where applicable.
     if m['love'] < 25 and m['trust'] < 25 and m['satisfaction'] < 20:
         desired.add(BUFF_ON_VERGE_BREAKUP)
     elif r >= 25 or (m['satisfaction'] < 40 and m['love'] >= 35):
@@ -310,5 +300,4 @@ def _initialize_zone_v042():
 
 
 base.initialize_zone = _initialize_zone_v042
-
 base.flog('MOODLET SYSTEM INSTALLED v{} (16 moodlets)'.format(VERSION))
