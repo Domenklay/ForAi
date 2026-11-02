@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<I c="DeepRelationshipViewInteraction" i="interaction" m="deep_relationships" n="DeepRelationships:ViewRelationship" s="16907167177260101633">
+  <V n="_saveable" t="disabled" />
+  <T n="allow_autonomous">False</T>
+</I>
