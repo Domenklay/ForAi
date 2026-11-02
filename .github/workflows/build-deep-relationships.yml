@@ -3,7 +3,7 @@ name: Build Deep Relationships
 on:
   push:
     branches:
-      - build/deep-relationships-v0.2.0
+      - build/deep-relationships-v0.3.0
   workflow_dispatch:
 
 jobs:
@@ -15,15 +15,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.7.17'
-      - name: Build and verify Sims 4 script mod
+      - name: Build and verify Sims 4 mod
         run: python DeepRelationships/build.py
-      - name: Inspect archive
+      - name: Inspect artifacts
         shell: bash
         run: |
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.2.0.ts4script
-          unzip -l DeepRelationships/dist/DeepRelationships_v0.2.0_INSTALL.zip
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.3.0.ts4script
+          unzip -l DeepRelationships/dist/DeepRelationships_v0.3.0_INSTALL.zip
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          p=Path('DeepRelationships/dist/DeepRelationships_v0.3.0.package').read_bytes()
+          assert p[:4] == b'DBPF'
+          print('package resource count:', struct.unpack_from('<I', p, 36)[0])
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: DeepRelationships-v0.2.0
+          name: DeepRelationships-v0.3.0
           path: DeepRelationships/dist/*
           if-no-files-found: error
