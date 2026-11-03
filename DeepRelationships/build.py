@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import ast
 import py_compile
 import shutil
 import zipfile
@@ -42,6 +43,21 @@ SOURCE_NAMES = [name[:-1] for name in EXPECTED_MODULES]
 
 
 def main():
+    # Catch misspelled module names before publishing a build.
+    known = set(Path(name).stem for name in SOURCE_NAMES)
+    for source_name in SOURCE_NAMES:
+        path = SRC / source_name
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported = [alias.name.split('.')[0] for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported = [node.module.split('.')[0]]
+            else:
+                continue
+            for module in imported:
+                if module.startswith(('deep_relationships', 'deeprel_', 'zz')) and module not in known:
+                    raise RuntimeError('Unresolved local import {} in {}'.format(module, source_name))
     for path in (BUILD, DIST):
         if path.exists():
             shutil.rmtree(str(path))
