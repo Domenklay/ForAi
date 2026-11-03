@@ -37,6 +37,6 @@ jobs:
       - name: Upload v0.8 beta script
         uses: actions/upload-artifact@v4
         with:
-          name: DeepRelationships-v0.8.6-MENU-FIX-SCRIPT
-          path: DeepRelationshipsRebuild/dist/DeepRelationships_v0.8.6_MENU_FIX.ts4script
+          name: DeepRelationships-v0.8.7-SAFE-SCRIPT
+          path: DeepRelationshipsRebuild/dist/DeepRelationships_v0.8.7_SAFE.ts4script
           if-no-files-found: error
