@@ -23,9 +23,9 @@ import zzzzz_deep_relationships_core_v046 as core
 import zzzzzz_deep_relationships_reconciliation_v050 as reconciliation
 import zzzzzzz_deep_relationships_v051 as roles
 import zzzzzzzz_deep_relationships_memory_v060 as memory
-import zzzzzzzzzzz_deep_relationships_v062 as moodlet_fix
-import zzzzzzzzzzzz_deep_relationships_breakup_v070 as breakup
-import zzzzzzzzzzzzzz_deep_relationships_notifications_v071 as notifications
+import zzzzzzzzzz_deep_relationships_v062 as moodlet_fix
+import zzzzzzzzzzz_deep_relationships_breakup_v070 as breakup
+import zzzzzzzzzzzzz_deep_relationships_notifications_v071 as notifications
 
 VERSION = '0.7.2'
 base.VERSION = VERSION
