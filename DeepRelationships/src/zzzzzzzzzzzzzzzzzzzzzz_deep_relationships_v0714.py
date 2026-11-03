@@ -10,9 +10,9 @@ from zone import Zone
 
 import deep_relationships as base
 import zzy_deep_relationships_moodlets as moodlets
-import zzzzzzzzzzzzzzzz_deep_relationships_v073 as cleanup
+import zzzzzzzzzzzzzzz_deep_relationships_v073 as cleanup
 import zzzzzzzzzzzzzzzzzzz_deep_relationships_v079 as delivery
-import zzzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0711 as stable
+import zzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0711 as stable
 import zzzzzzzzzzzzzzzzzz_deep_relationships_v078 as stages
 
 VERSION = '0.7.14'
