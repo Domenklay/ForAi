@@ -181,7 +181,7 @@ def _recent_memory(record, kinds, max_age=8):
         if str(item.get('kind', '')) not in wanted:
             continue
         try:
-            if int(item.get('age_steps', 99) or 99) <= int(max_age):
+            if int(item.get('age_steps', 99)) <= int(max_age):
                 return True
         except Exception:
             pass
