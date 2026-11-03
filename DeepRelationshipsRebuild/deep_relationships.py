@@ -90,10 +90,19 @@ def log(message):
 
 
 def _slot_id():
+    # Prefer a positive save slot from either account or PersistenceService.
+    # The old v0.8 beta always saw slot 0 on some installations.
+    from engine.save_slots import find_save_slot
     try:
-        return str(int(services.client_manager().get_first_client().account.save_slot_id or 0))
+        client = services.client_manager().get_first_client()
     except Exception:
-        return "0"
+        client = None
+    try:
+        persistence = services.get_persistence_service()
+    except Exception:
+        persistence = None
+    slot, source = find_save_slot(client, persistence)
+    return slot
 
 
 def _sim_info(value):
@@ -180,6 +189,8 @@ def _scan():
 
 def _load_slot():
     slot = _slot_id()
+    if slot == "0":
+        log("SAVE SLOT WARNING: unresolved ID 0; read-only legacy fallback")
     if _STORE.slot_id == slot:
         return
     data = {"slots": {}}
@@ -203,6 +214,9 @@ def _load_slot():
 def _write():
     if getattr(_STORE, "load_blocked", False):
         log("SAVE BLOCKED: invalid state must be recovered manually")
+        return False
+    if _slot_id() == "0":
+        log("STATE COMMIT BLOCKED: save slot unresolved (0); preserving existing sidecar")
         return False
     try:
         path = _data_path("deep_relationships_v08_state.json")
