@@ -15,13 +15,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.7.17'
-      - name: Build v0.7.2 ts4script
+      - name: Build v0.7.3 ts4script
         run: python DeepRelationships/build.py
       - name: Inspect ts4script
         shell: bash
-        run: unzip -l DeepRelationships/dist/DeepRelationships_v0.7.2.ts4script
+        run: unzip -l DeepRelationships/dist/DeepRelationships_v0.7.3.ts4script
       - uses: actions/upload-artifact@v4
         with:
-          name: DeepRelationships-v0.7.2-script
-          path: DeepRelationships/dist/DeepRelationships_v0.7.2.ts4script
+          name: DeepRelationships-v0.7.3-script
+          path: DeepRelationships/dist/DeepRelationships_v0.7.3.ts4script
           if-no-files-found: error
