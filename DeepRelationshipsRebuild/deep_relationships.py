@@ -33,6 +33,7 @@ from ui.ui_dialog import UiDialogOk
 from ui.ui_dialog_notification import UiDialogNotification
 from relationships.relationship_track import RelationshipTrack
 from relationships.relationship_service import RelationshipService
+from singletons import DEFAULT
 
 from runtime import RelationshipStore, RelationshipRuntime
 import adapter.game as bridge
@@ -251,6 +252,8 @@ def _runtime():
 
 
 def _kind(track):
+    if track is None or track is DEFAULT:
+        return "friendship"
     try:
         if track is RelationshipTrack.ROMANCE_TRACK or track == RelationshipTrack.ROMANCE_TRACK:
             return "romance"
