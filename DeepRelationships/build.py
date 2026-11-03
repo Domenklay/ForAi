@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 BUILD = ROOT / 'build'
 DIST = ROOT / 'dist'
-VERSION = '0.7.7'
+VERSION = '0.7.8'
 SCRIPT_NAME = 'DeepRelationships_v{}.ts4script'.format(VERSION)
 EXPECTED_MAGIC = bytes.fromhex('420d0d0a')
 EXPECTED_MODULES = [
@@ -32,6 +32,7 @@ EXPECTED_MODULES = [
     'zzzzzzzzzzzzzzz_deep_relationships_v073.pyc',
     'zzzzzzzzzzzzzzzz_deep_relationships_v075.pyc',
     'zzzzzzzzzzzzzzzzz_deep_relationships_v076.pyc',
+    'zzzzzzzzzzzzzzzzzz_deep_relationships_v078.pyc',
 ]
 SOURCE_NAMES = [name[:-1] for name in EXPECTED_MODULES]
 
