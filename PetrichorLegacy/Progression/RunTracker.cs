@@ -48,7 +48,7 @@ namespace PetrichorLegacy.Progression
         private static void Run_BeginGameOver(On.RoR2.Run.orig_BeginGameOver orig, Run self, GameEndingDef ending)
         {
             _won = ending != null && ending.isWin;
-            _endingName = ending != null ? ending.name : "Unknown";
+            _endingName = ending != null ? ending.cachedName : "Unknown";
             AwardIfNeeded(self);
             orig(self, ending);
         }
