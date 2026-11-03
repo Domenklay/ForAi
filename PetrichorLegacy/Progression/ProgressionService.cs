@@ -2,23 +2,31 @@ using System;
 using System.Linq;
 using PetrichorLegacy.Models;
 using PetrichorLegacy.Persistence;
+using UnityEngine;
 
 namespace PetrichorLegacy.Progression
 {
     public static class ProgressionService
     {
+        public static int LastAwardAmount { get; private set; }
+        public static string LastAwardReason { get; private set; } = string.Empty;
+        public static float LastAwardTime { get; private set; } = -100f;
+
         public static int XpRequiredForNextLevel(int level)
         {
             level = Math.Max(1, level);
             return 1200 + (level - 1) * 350 + ((level - 1) * (level - 1) * 18);
         }
 
-        public static void AwardXp(ProfileProgress profile, int amount)
+        public static void AwardXp(ProfileProgress profile, int amount, string reason = null)
         {
             if (profile == null || amount <= 0) return;
 
             profile.currentXp += amount;
             profile.lifetimeXp += amount;
+            LastAwardAmount = amount;
+            LastAwardReason = string.IsNullOrWhiteSpace(reason) ? "Опыт" : reason;
+            LastAwardTime = Time.unscaledTime;
 
             while (profile.currentXp >= XpRequiredForNextLevel(profile.level))
             {
