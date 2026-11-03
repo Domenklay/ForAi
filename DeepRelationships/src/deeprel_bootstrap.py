@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Deep Relationships v0.7.14 deterministic bootstrap."""
+"""Deep Relationships v0.7.15 deterministic bootstrap."""
 
 import traceback
 
@@ -8,7 +8,7 @@ _loading = "base"
 try:
     _loading = "deep_relationships"
     import deep_relationships as base
-    base.flog('V0714 BOOTSTRAP START')
+    base.flog('V0715 BOOTSTRAP START')
 
     _loading = "zz_deep_relationships_grievances"
     import zz_deep_relationships_grievances
@@ -54,12 +54,12 @@ try:
     import zzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0711 as final_layer
     _loading = 'zzzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0714'
     import zzzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0714
-    base.VERSION = '0.7.14'
-    moodlets.VERSION = '0.7.14'
-    base.flog('V0714 FINAL STAGE DELIVERY LAYER IMPORTED')
+    base.VERSION = '0.7.15'
+    moodlets.VERSION = '0.7.15'
+    base.flog('V0715 FINAL STAGE DELIVERY LAYER IMPORTED')
 except Exception as exc:
     # Never let v0.4.6's quiet logger hide the traceback again.
-    message = 'V0714 BOOTSTRAP FAILED AT {}: {}: {}'.format(
+    message = 'V0715 BOOTSTRAP FAILED AT {}: {}: {}'.format(
         _loading, type(exc).__name__, exc
     )
     try:
@@ -71,7 +71,7 @@ except Exception as exc:
         _diagnostic_core._RAW_FLOG(traceback.format_exc())
     except Exception:
         try:
-            base.flog('V0714 BOOTSTRAP FAILED TRACE: {}'.format(
+            base.flog('V0715 BOOTSTRAP FAILED TRACE: {}'.format(
                 traceback.format_exc()
             ))
         except Exception:
