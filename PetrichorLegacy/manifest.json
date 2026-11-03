@@ -1,12 +1,7 @@
 {
   "name": "PetrichorLegacy",
-  "version_number": "0.1.0",
+  "version_number": "0.4.0",
   "website_url": "",
-  "description": "Persistent XP, Lost Castle-style talent tree and configurable starting-item loadouts for Risk of Rain 2.",
-  "dependencies": [
-    "RiskofThunder-RoR2BepInExPack-1.49.0",
-    "RiskofThunder-R2API_Core-5.3.0",
-    "RiskofThunder-R2API_RecalculateStats-1.7.0",
-    "RiskofThunder-R2API_Networking-1.0.4"
-  ]
+  "description": "Infinite meta progression for Risk of Rain 2 1.5.0 with three specializations per class, class Void capstones, specialization legendary rewards, scrollable talent trees, endless mastery, perfection/prestige, icon Arsenal and rare-monster progression.",
+  "dependencies": []
 }
