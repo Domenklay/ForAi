@@ -6,8 +6,8 @@ This directory is a new codebase; no incremental zzzz patch modules, no automati
 ## Architecture
 
 1. `engine/` — pure Python 3.7 code: directed story stages, moodlet diffing, event-driven stage coordinator, read-only legacy-save reader. Grievance/event mechanics still need porting.
-2. `adapter/` (next milestone) — exactly one hook per EA game event, one refresh dispatcher, one event/action registry. No chained function monkey-patches.
-3. `ui/` (next milestone) — Sims 4 interactions/report display, notifications.
+2. `adapter/` — experimental Sims 4 Buff API bridge and once-only zone/score observers. Still not wired to an installable gameplay bootstrap or state backend.
+3. `engine/actions.py` — canonical ten-action catalogue and runner registry; actions cannot appear in game until real runner logic, UI interaction tuning and registration are ported.
 4. `resources/` (next milestone) — validated Buff IDs/strings/icons and tuning package.
 5. `tests/` — offline regressions for stages, relationships, save/load, moodlet diffing, interactions.
 
@@ -26,4 +26,4 @@ This directory is a new codebase; no incremental zzzz patch modules, no automati
 
 No user-facing "complete" zip unless import graph, Python 3.7 bytecode, resource IDs,
 interaction registrations, migration tests and the in-game smoke test have all passed.
-Current work contains the pure stage selector, stage moodlet diff, pair coordinator, and read-only legacy reader, with offline tests. No EA adapter, interactions, gameplay persistence or installable v0.8 release yet.
+Current work contains a stage selector, stage moodlet diff, pair coordinator, action catalogue, event dispatcher, read-only legacy reader, experimental Sims 4 Buff adapter and idempotent game hooks, with offline and mock-game tests. Missing: real gameplay record changes, registered action runners, UI tuning, dedicated save lifecycle, the v0.8 bootstrap and in-game smoke tests. No installable v0.8 release yet.
