@@ -66,7 +66,7 @@ class GameHooks(object):
             before = None
             if kind is not None:
                 try:
-                    if "track" in kwargs:
+                    if "track" in kwargs or len(args) > 4:
                         before = float(relationship.get_relationship_score(
                             sim_a, sim_b, track=track))
                     else:
@@ -76,7 +76,7 @@ class GameHooks(object):
             result = original(*args, **kwargs)
             if kind is not None and before is not None:
                 try:
-                    if "track" in kwargs:
+                    if "track" in kwargs or len(args) > 4:
                         after = float(relationship.get_relationship_score(
                             sim_a, sim_b, track=track))
                     else:
