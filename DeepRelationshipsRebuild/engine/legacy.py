@@ -4,6 +4,7 @@
 No writes or mutation. Must not be used to overwrite the game's save data.
 """
 import json
+from copy import deepcopy
 
 
 class LegacyStateError(ValueError):
@@ -36,7 +37,7 @@ def legacy_relationships(snapshot, slot_id):
             continue
         if source <= 0 or target <= 0 or source == target:
             continue
-        copy = dict(record)
+        copy = deepcopy(record)
         copy["source_id"] = source
         copy["target_id"] = target
         result.append(copy)
