@@ -6,7 +6,7 @@ import sys
 import traceback
 from functools import wraps
 
-VERSION = "0.8.2-beta"
+VERSION = "0.8.4-diagnostics"
 MOD_NAME = "Глубокие отношения"
 
 # The installed script is a zip: both the zip root and its engine subdirectory
@@ -58,6 +58,7 @@ _RUNTIME = None
 _ALARM = None
 _ALARM_OWNER = type("_DeepRelAlarmOwner", (), {})()
 _SAVING = False
+_STARTUP_NOTIFIED = False
 
 
 def _root():
@@ -243,6 +244,70 @@ def _write():
         return False
 
 
+def _notify_startup():
+    """Once per session, as soon as the active Sim is available."""
+    global _STARTUP_NOTIFIED
+    if _STARTUP_NOTIFIED:
+        return True
+    try:
+        sim = services.get_active_sim()
+        if sim is None:
+            log("STARTUP NOTIFICATION DEFERRED: no active Sim")
+            return False
+        buff_manager = services.get_instance_manager(sims4.resources.Types.BUFF)
+        from engine.moodlets import STAGE_BUFFS, EXTRA_BUFF_IDS
+        stages = sum(1 for i in STAGE_BUFFS if buff_manager and buff_manager.get(i))
+        extras = sum(1 for i in EXTRA_BUFF_IDS if buff_manager and buff_manager.get(i))
+        message = ("Мод v{} запущен. Мудлеты: {}/10 стадий, "
+                   "{}/16 дополнительных. Слот: {}. "
+                   "Для диагностики нажмите «Наши отношения».").format(
+                       VERSION, stages, extras, _slot_id())
+        dialog = UiDialogNotification.TunableFactory().default(
+            sim,
+            title=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text(
+                "Глубокие отношения — мод активен"),
+            text=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text(message))
+        dialog.show_dialog()
+        _STARTUP_NOTIFIED = True
+        log("STARTUP NOTIFICATION SHOWN version {} buffs {}/{} slot {}".format(
+            VERSION, stages, extras, _slot_id()))
+        return True
+    except Exception:
+        log("STARTUP NOTIFICATION FAILED " + traceback.format_exc())
+        return False
+
+
+def _buff_diagnostics(sim_id, stage):
+    """Log tuning metadata and instance state, not inferred UI visibility."""
+    try:
+        from engine.moodlets import desired_ids
+        record = _STORE.existing(sim_id, next((
+            r["target_id"] for r in _STORE.records()
+            if int(r.get("source_id", 0)) == sim_id), 0))
+        expected = sorted(desired_ids(stage, record))
+        manager = services.get_instance_manager(sims4.resources.Types.BUFF)
+        info = services.sim_info_manager().get(sim_id)
+        out = []
+        for buff_id in expected:
+            buff_type = manager.get(buff_id) if manager else None
+            if buff_type is None:
+                out.append("{}:TUNING_MISSING".format(buff_id))
+                continue
+            has = bool(info.has_buff(buff_type)) if info is not None else False
+            mood = getattr(buff_type, "mood_type", None)
+            weight = getattr(buff_type, "mood_weight", None)
+            visible = getattr(buff_type, "visible", None)
+            icon = getattr(buff_type, "icon", None)
+            out.append("{}:active={} visible={} mood={} weight={} icon={}".format(
+                buff_id, has, visible, mood, weight, icon is not None))
+        result = " ; ".join(out) if out else "нет активных условий"
+        log("UI BUFF DIAGNOSTICS sim {} stage {} {}".format(sim_id, stage, result))
+        return result
+    except Exception:
+        log("UI BUFF DIAGNOSTICS ERROR " + traceback.format_exc())
+        return "ошибка диагностики — см. журнал"
+
+
 def _outcome(action, accepted, a, b):
     log("ACTION {} {} -> {} outcome {}".format(action,a,b,accepted))
     try:
@@ -293,6 +358,7 @@ def _sync_zone():
         _scan()
         _install_ui()
         _runtime().on_zone_ready()
+        _notify_startup()
         if _ALARM is not None:
             alarms.cancel_alarm(_ALARM)
         _ALARM = alarms.add_alarm(
@@ -312,6 +378,7 @@ def _tick(_):
         _STORE.dirty=True
         _scan()
         _runtime().on_zone_ready()
+        _notify_startup()
     except Exception:
         log("TICK ERROR "+traceback.format_exc())
 
@@ -344,8 +411,9 @@ def report(actor,target):
                            ("love","trust","attachment","compatibility","satisfaction","resentment")}))
     try:
         sim=getattr(actor,"sim",actor)
-        body="{} → {}\n{}\n\n{} → {}\n{}\n\nСтадия: {}".format(
-            a,b,details(first),b,a,details(second),stage or "нет")
+        diag = _buff_diagnostics(a, stage)
+        body="{} → {}\n{}\n\n{} → {}\n{}\n\nСтадия: {}\n\nДиагностика Buff:\n{}".format(
+            a,b,details(first),b,a,details(second),stage or "нет", diag)
         dialog=UiDialogOk.TunableFactory().default(
             sim,
             title=lambda **_:LocalizationHelperTuning.get_raw_text("Наши отношения"),
