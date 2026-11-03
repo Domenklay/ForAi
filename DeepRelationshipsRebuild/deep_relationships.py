@@ -6,7 +6,7 @@ import sys
 import traceback
 from functools import wraps
 
-VERSION = "0.8.4-diagnostics"
+VERSION = "0.8.6-test"
 MOD_NAME = "Глубокие отношения"
 
 # The installed script is a zip: both the zip root and its engine subdirectory
@@ -389,6 +389,10 @@ def execute(action, actor, target):
         if not _ensure_pair(a,b):
             log("ACTION BLOCKED no tracked pair {}".format(action))
             return False
+        from engine.availability import action_allowed
+        if not action_allowed(action, _STORE.existing(a,b), _STORE.existing(b,a)):
+            log("ACTION BLOCKED by stage eligibility {} {} -> {}".format(action,a,b))
+            return False
         return _runtime().execute_action(action,a,b)
     except Exception:
         log("ACTION ERROR "+traceback.format_exc())
@@ -412,8 +416,11 @@ def report(actor,target):
     try:
         sim=getattr(actor,"sim",actor)
         diag = _buff_diagnostics(a, stage)
-        body="{} → {}\n{}\n\n{} → {}\n{}\n\nСтадия: {}\n\nДиагностика Buff:\n{}".format(
-            a,b,details(first),b,a,details(second),stage or "нет", diag)
+        log("REPORT DETAIL buff diagnostic {}".format(diag))
+        # Keep the regular report readable; long diagnostic strings are
+        # written into the log instead of clipping the dialog.
+        body="{} → {}\\n{}\\n\\n{} → {}\\n{}\\n\\nСтадия: {}\\nBuff: см. deeprel_v08.log".format(
+            a,b,details(first),b,a,details(second),stage or "нет")
         dialog=UiDialogOk.TunableFactory().default(
             sim,
             title=lambda **_:LocalizationHelperTuning.get_raw_text("Наши отношения"),
@@ -442,7 +449,12 @@ class _Interaction(SuperInteraction):
         try:
             if _sim_id(actor)==_sim_id(target) or not _sim_id(actor) or not _sim_id(target):
                 return TestResult(False)
-            if _STORE.existing(_sim_id(actor),_sim_id(target)) is None:
+            a, b = _sim_id(actor), _sim_id(target)
+            left, right = _STORE.existing(a,b), _STORE.existing(b,a)
+            if left is None or right is None:
+                return TestResult(False)
+            from engine.availability import action_allowed
+            if not action_allowed(cls.ACTION, left, right):
                 return TestResult(False)
         except Exception:
             return TestResult(False)
@@ -462,6 +474,56 @@ class _Interaction(SuperInteraction):
 class DeepRelationshipViewInteraction(_Interaction):
     ACTION="report"
     NAME="Наши отношения"
+
+class DeepRelDiscussProblemsInteraction(_Interaction):
+    ACTION="discuss"
+    NAME="Обсудить проблемы"
+
+
+class DeepRelApologizeInteraction(_Interaction):
+    ACTION="apologize"
+    NAME="Извиниться"
+
+
+class DeepRelAdmitFaultInteraction(_Interaction):
+    ACTION="admit_fault"
+    NAME="Признать вину"
+
+
+class DeepRelForgiveInteraction(_Interaction):
+    ACTION="forgive"
+    NAME="Простить"
+
+
+class DeepRelNotReadyInteraction(_Interaction):
+    ACTION="not_ready"
+    NAME="Не готов простить"
+
+
+class DeepRelSecondChanceInteraction(_Interaction):
+    ACTION="second_chance"
+    NAME="Дать второй шанс"
+
+
+class DeepRelBreakupTalkInteraction(_Interaction):
+    ACTION="breakup_talk"
+    NAME="Поговорить о расставании"
+
+
+class DeepRelTakePauseInteraction(_Interaction):
+    ACTION="take_pause"
+    NAME="Взять паузу"
+
+
+class DeepRelSaveRelationshipInteraction(_Interaction):
+    ACTION="save_relationship"
+    NAME="Попробовать спасти отношения"
+
+
+class DeepRelDecideBreakupInteraction(_Interaction):
+    ACTION="decide_breakup"
+    NAME="Решить расстаться"
+
 
 
 def _install_ui(sim=None):
