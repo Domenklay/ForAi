@@ -24,6 +24,7 @@ EXPECTED_MODULES = [
     'zzzzzzzzz_deep_relationships_v061.pyc',
     'zzzzzzzzzz_deep_relationships_v062.pyc',
     'zzzzzzzzzzz_deep_relationships_breakup_v070.pyc',
+    'zzzzzzzzzzzz_deep_relationships_v070_guard.pyc',
 ]
 SOURCE_NAMES = [
     'deep_relationships.py',
@@ -37,6 +38,7 @@ SOURCE_NAMES = [
     'zzzzzzzzz_deep_relationships_v061.py',
     'zzzzzzzzzz_deep_relationships_v062.py',
     'zzzzzzzzzzz_deep_relationships_breakup_v070.py',
+    'zzzzzzzzzzzz_deep_relationships_v070_guard.py',
 ]
 
 
