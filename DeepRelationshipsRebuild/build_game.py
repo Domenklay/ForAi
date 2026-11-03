@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
 DIST=ROOT/"dist"
-DST=DIST/"DeepRelationships_v0.8.4_DIAGNOSTIC.ts4script"
+DST=DIST/"DeepRelationships_v0.8.6_MENU_FIX.ts4script"
 MAGIC=bytes.fromhex("420d0d0a")
 EXCLUDE={"tests", "dist", "__pycache__"}
 SOURCES=sorted(p for p in ROOT.rglob("*.py") if not EXCLUDE.intersection(p.relative_to(ROOT).parts) and p.name!="build_game.py")
