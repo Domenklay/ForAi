@@ -31,3 +31,7 @@ The new `runtime.py` composes game bridge, pure action registry, and in-memory r
 ## Install status
 
 This source archive is for review and tests, **not** a `.ts4script`/`.package` installation. It must not be placed into `Mods`. Existing save data are never overwritten by the preview. A future game-ready release still needs the bootstrap, registered Sim interactions, real save lifecycle, Buff resources verification, game-version validation and in-game testing.
+
+## v0.8.3 DDS icon repair (package hotfix)
+
+The previous v0.7.11 tuning package had 26 icon resources (resource type 0x00B2D882) containing invalid DDS FourCC `DST5` rather than standard `DXT5`. Merely changing the FourCC exposes visibly corrupted/tiled image data, so the v0.8.3 test package rebuilds all 26 icons as valid 256x256 DXT5 textures, retaining their original TGI resource identifiers and the 75 non-image resources byte-for-byte. The v0.8.2 game script is unchanged. Validated using a DDS decoder, full DBPF index/resource integrity checks, and unchanged script byte comparison. UI display in a real game session remains unverified.
