@@ -6,7 +6,7 @@ import sys
 import traceback
 from functools import wraps
 
-VERSION = "0.8.0-beta"
+VERSION = "0.8.2-beta"
 MOD_NAME = "Глубокие отношения"
 
 # The installed script is a zip: both the zip root and its engine subdirectory
