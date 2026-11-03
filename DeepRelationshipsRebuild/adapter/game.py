@@ -57,6 +57,34 @@ def _present_buff_ids(sim_id):
     return result
 
 
+def _buffs_component(sim_info):
+    # TS4 SimInfo exposes the plural 'buffs_component'. The previous code
+    # used remove_buff_by_type, which does not always clear commodity-backed
+    # Buff handle instances.
+    for name in ("buffs_component", "buff_component"):
+        try:
+            found = getattr(sim_info, name, None)
+            if found is not None:
+                return found
+        except Exception:
+            pass
+    try:
+        from objects.components.types import BUFF_COMPONENT
+        getter = getattr(sim_info, "get_component", None)
+        if getter is not None:
+            return getter(BUFF_COMPONENT)
+    except Exception:
+        pass
+    return None
+
+
+def _active_buff_entry(component, buff_type):
+    active = getattr(component, "_active_buffs", None)
+    if isinstance(active, dict):
+        return active.get(buff_type)
+    return None
+
+
 def _remove_buff(sim_id, buff_id):
     sim_info = _sim_info(sim_id)
     manager = _buff_manager()
@@ -64,7 +92,54 @@ def _remove_buff(sim_id, buff_id):
     if sim_info is None or buff_type is None:
         _log("BUFF REMOVE NOT AVAILABLE sim {} buff {}".format(sim_id, buff_id))
         return
-    sim_info.remove_buff_by_type(buff_type)
+
+    component = _buffs_component(sim_info)
+    removed_handles = 0
+    if component is not None:
+        # Multiple independent reasons can hold the same buff. Remove every
+        # handle, but never touch Buffs unrelated to this mod.
+        for attempt in range(4):
+            entry = _active_buff_entry(component, buff_type)
+            if entry is None:
+                break
+            handles = tuple(getattr(entry, "handle_ids", ()) or ())
+            if not handles:
+                break
+            for handle in handles:
+                try:
+                    component.remove_buff(handle, update_mood=True, immediate=True)
+                    removed_handles += 1
+                except TypeError:
+                    try:
+                        component.remove_buff(handle, update_mood=True)
+                        removed_handles += 1
+                    except Exception:
+                        _log("BUFF HANDLE REMOVE ERROR sim {} buff {} {}".format(
+                            sim_id, buff_id, traceback.format_exc()))
+                except Exception:
+                    _log("BUFF HANDLE REMOVE ERROR sim {} buff {} {}".format(
+                        sim_id, buff_id, traceback.format_exc()))
+
+    # Some ordinary Buffs have no active handles; type removal is a fallback.
+    try:
+        if sim_info.has_buff(buff_type):
+            sim_info.remove_buff_by_type(buff_type)
+    except Exception:
+        _log("BUFF TYPE REMOVE ERROR sim {} buff {} {}".format(
+            sim_id, buff_id, traceback.format_exc()))
+
+    try:
+        still_present = bool(sim_info.has_buff(buff_type))
+    except Exception:
+        still_present = _active_buff_entry(component, buff_type) is not None if component is not None else False
+    if still_present:
+        entry = _active_buff_entry(component, buff_type) if component is not None else None
+        handles = tuple(getattr(entry, "handle_ids", ()) or ()) if entry is not None else ()
+        _log("BUFF REMOVE FAILED sim {} buff {} handles {} component {}".format(
+            sim_id, buff_id, handles, bool(component is not None)))
+    elif removed_handles:
+        _log("BUFF REMOVED BY HANDLES sim {} buff {} handles {}".format(
+            sim_id, buff_id, removed_handles))
 
 
 def _add_buff(sim_id, buff_id):
