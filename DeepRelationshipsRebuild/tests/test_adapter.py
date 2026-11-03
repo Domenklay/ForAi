@@ -41,6 +41,9 @@ class GameAdapterTests(unittest.TestCase):
         sys.modules.update({"services": fake_services, "sims4": fake_sims4, "sims4.resources": fake_resources})
         sys.modules.pop("adapter.game", None)
         self.game = importlib.import_module("adapter.game")
+        # Existing integration tests explicitly exercise the opt-in engine;
+        # production safe mode stays disabled by default.
+        self.game.CUSTOM_BUFFS_ENABLED = True
         self.logs = []
         self.records = [
             {"source_id": 1, "target_id": 2, "resentment": 4},
@@ -53,6 +56,18 @@ class GameAdapterTests(unittest.TestCase):
                 sys.modules.pop(key, None)
             else:
                 sys.modules[key] = value
+
+    def test_safe_mode_never_modifies_any_sim_buffs(self):
+        self.game.CUSTOM_BUFFS_ENABLED = False
+        sentinel = object()
+        self.sims[1].buffs.add(sentinel)
+        self.sims[2].buffs.add(sentinel)
+        self.game.install(lambda: self.records, self.logs.append)
+        self.assertTrue(self.game.on_zone_ready())
+        self.assertFalse(self.game.on_relationship_changed(1, 2, "conflict"))
+        self.assertEqual(self.sims[1].buffs, {sentinel})
+        self.assertEqual(self.sims[2].buffs, {sentinel})
+        self.assertTrue(any("DISABLED" in line for line in self.logs))
 
     def test_handle_backed_buff_is_removed_when_stage_changes(self):
         from engine.moodlets import STAGE_TO_BUFF
