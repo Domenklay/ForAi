@@ -60,7 +60,7 @@ class StageCoordinatorTests(unittest.TestCase):
     def test_action_error_is_logged_and_not_propagated(self):
         self.coordinator.record_reader = lambda: 1 / 0
         self.assertFalse(self.coordinator.refresh_sim(1))
-        self.assertIn("STAGE ERROR", self.messages[-1])
+        self.assertIn("MOODLETS ERROR", self.messages[-1])
 
 
 if __name__ == "__main__":
