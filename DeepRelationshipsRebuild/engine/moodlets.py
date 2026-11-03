@@ -77,7 +77,7 @@ def _extra_names(record, stage):
     Some legacy effects still exist in .package but are deliberately never
     applied beside a new stage representing the same story beat.
     """
-    if not isinstance(record, dict):
+    if not isinstance(record, dict) or not {"love", "trust", "satisfaction"}.issubset(record):
         return set()
     r = _num(record, "resentment")
     love = _num(record, "love")
