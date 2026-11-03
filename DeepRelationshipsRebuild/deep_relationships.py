@@ -6,7 +6,7 @@ import sys
 import traceback
 from functools import wraps
 
-VERSION = "0.8.6-test"
+VERSION = "0.8.7-safe"
 MOD_NAME = "Глубокие отношения"
 
 # The installed script is a zip: both the zip root and its engine subdirectory
@@ -256,12 +256,12 @@ def _notify_startup():
             return False
         buff_manager = services.get_instance_manager(sims4.resources.Types.BUFF)
         from engine.moodlets import STAGE_BUFFS, EXTRA_BUFF_IDS
+        from adapter.game import CUSTOM_BUFFS_ENABLED
         stages = sum(1 for i in STAGE_BUFFS if buff_manager and buff_manager.get(i))
         extras = sum(1 for i in EXTRA_BUFF_IDS if buff_manager and buff_manager.get(i))
-        message = ("Мод v{} запущен. Мудлеты: {}/10 стадий, "
-                   "{}/16 дополнительных. Слот: {}. "
-                   "Для диагностики нажмите «Наши отношения».").format(
-                       VERSION, stages, extras, _slot_id())
+        message = ("Мод v{} запущен в безопасном режиме. "
+                   "Мудлеты временно отключены; только отчёт отношений. "
+                   "Слот: {}.").format(VERSION, _slot_id())
         dialog = UiDialogNotification.TunableFactory().default(
             sim,
             title=lambda *args, **kwargs: LocalizationHelperTuning.get_raw_text(
@@ -281,6 +281,9 @@ def _buff_diagnostics(sim_id, stage):
     """Log tuning metadata and instance state, not inferred UI visibility."""
     try:
         from engine.moodlets import desired_ids
+        from adapter.game import CUSTOM_BUFFS_ENABLED
+        if not CUSTOM_BUFFS_ENABLED:
+            return "Мудлеты временно отключены для защиты настроений симов"
         record = _STORE.existing(sim_id, next((
             r["target_id"] for r in _STORE.records()
             if int(r.get("source_id", 0)) == sim_id), 0))
@@ -534,7 +537,11 @@ def _install_ui(sim=None):
     def attach(s):
         current=tuple(getattr(s,"_super_affordances",()))
         added=0
+        # The old action tunings are not loaded by EA in v0.8.6; keep only
+        # the known-working report interaction until rebuilt from vanilla.
         for name, guid in TUNINGS.items():
+            if name != "report":
+                continue
             affordance=manager.get(guid)
             if affordance is None:
                 log("UI TUNING MISSING {} {}".format(name,guid))
