@@ -5,7 +5,7 @@ import traceback
 
 try:
     import deep_relationships as base
-    base.flog('V0710 BOOTSTRAP START')
+    base.flog('V0711 BOOTSTRAP START')
 
     import zz_deep_relationships_grievances
     import zzy_deep_relationships_moodlets as moodlets
