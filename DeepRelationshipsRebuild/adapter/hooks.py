@@ -50,7 +50,7 @@ class GameHooks(object):
             result = original(*args, **kwargs)
             try:
                 sim_a, sim_b, increment = args[1:4]
-                kind = kind_from_track(kwargs.get("track", None))
+                kind = kind_from_track(kwargs.get("track", args[4] if len(args) > 4 else None))
                 if kind is not None:
                     after_score_update(sim_a, sim_b, kind, increment)
                     dispatcher.on_relationship_changed(sim_a, sim_b, kind)
@@ -61,7 +61,7 @@ class GameHooks(object):
         def score_set(original, *args, **kwargs):
             relationship = args[0]
             sim_a, sim_b, value = args[1:4]
-            track = kwargs.get("track", None)
+            track = kwargs.get("track", args[4] if len(args) > 4 else None)
             kind = kind_from_track(track)
             before = None
             if kind is not None:
