@@ -14,3 +14,21 @@ jobs:
           python-version: '3.7.17'
       - name: Run stage regression tests
         run: python -m unittest discover -s DeepRelationshipsRebuild/tests -v
+      - name: Bundle v0.8 development sources
+        run: |
+          python - <<'PY'
+          import pathlib, zipfile
+          root = pathlib.Path('DeepRelationshipsRebuild')
+          output = pathlib.Path('DeepRelationships-v0.8-SOURCE-PREVIEW.zip')
+          with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as z:
+              for p in root.rglob('*'):
+                  if p.is_file() and '__pycache__' not in p.parts:
+                      z.write(p, str(p))
+          print(output, output.stat().st_size)
+          PY
+      - name: Upload development source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeepRelationships-v0.8-SOURCE-PREVIEW
+          path: DeepRelationships-v0.8-SOURCE-PREVIEW.zip
+          if-no-files-found: error
