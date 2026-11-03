@@ -30,13 +30,24 @@ namespace PetrichorLegacy.UI
         private void Update()
         {
             SaveService.RefreshProfile();
-            if (_toggleKey != null && _toggleKey.Value.IsDown() && PreGameController.instance != null)
+            if (_toggleKey != null && _toggleKey.Value.IsDown())
+            {
                 _open = !_open;
+                PetrichorLegacyPlugin.Log?.LogInfo($"Meta progression UI toggled: {(_open ? "OPEN" : "CLOSED")}");
+            }
         }
 
         private void OnGUI()
         {
-            if (!_open || PreGameController.instance == null || SaveService.Current == null) return;
+            if (!_open || SaveService.Current == null) return;
+
+            var maxWidth = Mathf.Max(760f, Screen.width - 40f);
+            var maxHeight = Mathf.Max(520f, Screen.height - 40f);
+            _window.width = Mathf.Min(_window.width, maxWidth);
+            _window.height = Mathf.Min(_window.height, maxHeight);
+            _window.x = Mathf.Clamp(_window.x, 0f, Mathf.Max(0f, Screen.width - _window.width));
+            _window.y = Mathf.Clamp(_window.y, 0f, Mathf.Max(0f, Screen.height - _window.height));
+
             _window = GUI.Window(941204, _window, DrawWindow, "PETRICHOR LEGACY — META PROGRESSION");
         }
 
@@ -109,7 +120,7 @@ namespace PetrichorLegacy.UI
             GUILayout.Label($"Вместимость: {used}/{capacity}. Каждая следующая копия одного предмета дороже предыдущей.");
 
             GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical("box", GUILayout.Width(920));
+            GUILayout.BeginVertical("box", GUILayout.Width(Mathf.Min(920f, _window.width * 0.62f)));
             GUILayout.Label("ДОСТУПНЫЕ ПРЕДМЕТЫ (только открытые в Logbook)");
             GUILayout.BeginHorizontal();
             GUILayout.Label("Поиск:", GUILayout.Width(60));
@@ -131,9 +142,9 @@ namespace PetrichorLegacy.UI
                 var selected = profile.startingLoadout.FirstOrDefault(x => x.itemName == item.name)?.count ?? 0;
                 var cost = StartingLoadoutService.CostOfCopy(item, selected);
                 GUILayout.BeginHorizontal("box");
-                GUILayout.Label(DisplayName(item), GUILayout.Width(480));
-                GUILayout.Label(StartingLoadoutService.TierName(item), GUILayout.Width(150));
-                GUILayout.Label($"Цена: {cost}", GUILayout.Width(90));
+                GUILayout.Label(DisplayName(item), GUILayout.Width(420));
+                GUILayout.Label(StartingLoadoutService.TierName(item), GUILayout.Width(130));
+                GUILayout.Label($"Цена: {cost}", GUILayout.Width(80));
                 GUI.enabled = used + cost <= capacity;
                 if (GUILayout.Button("+", GUILayout.Width(45)))
                 {
@@ -146,7 +157,7 @@ namespace PetrichorLegacy.UI
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
 
-            GUILayout.BeginVertical("box", GUILayout.Width(520));
+            GUILayout.BeginVertical("box", GUILayout.ExpandWidth(true));
             GUILayout.Label("ВЫБРАНО");
             _selectedScroll = GUILayout.BeginScrollView(_selectedScroll);
             foreach (var record in profile.startingLoadout.ToList())
@@ -154,7 +165,7 @@ namespace PetrichorLegacy.UI
                 var item = StartingLoadoutService.FindItem(record.itemName);
                 if (item == null) continue;
                 GUILayout.BeginHorizontal("box");
-                GUILayout.Label($"{DisplayName(item)}  x{record.count}", GUILayout.Width(380));
+                GUILayout.Label($"{DisplayName(item)}  x{record.count}", GUILayout.ExpandWidth(true));
                 if (GUILayout.Button("−", GUILayout.Width(45))) StartingLoadoutService.RemoveOne(profile, item);
                 GUILayout.EndHorizontal();
             }
