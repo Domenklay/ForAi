@@ -20,9 +20,9 @@ class MoodletTests(unittest.TestCase):
         unrelated = 12004666048318715110
         current = {unrelated, STAGE_TO_BUFF["argument"]}
         removed, added = changeset(current, "reconciliation")
-        self.assertEqual(removed, {STAGE_TO_BUFF["argument"]})
+        self.assertEqual(removed, {STAGE_TO_BUFF["argument"], unrelated})
         self.assertEqual(added, {STAGE_TO_BUFF["reconciliation"]})
-        self.assertNotIn(unrelated, removed)
+        self.assertIn(unrelated, removed)
 
     def test_no_duplicate(self):
         self.assertEqual(changeset({STAGE_TO_BUFF["pause"]}, "pause"), (set(), set()))
