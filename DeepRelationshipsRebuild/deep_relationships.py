@@ -32,6 +32,7 @@ from sims4.utils import flexmethod
 from ui.ui_dialog import UiDialogOk
 from ui.ui_dialog_notification import UiDialogNotification
 from relationships.relationship_track import RelationshipTrack
+from relationships.relationship_service import RelationshipService
 
 from runtime import RelationshipStore, RelationshipRuntime
 import adapter.game as bridge
@@ -462,7 +463,7 @@ def initialize():
             type("_Proxy",(),{"on_zone_ready":staticmethod(_sync_zone),
                                "on_relationship_changed":staticmethod(bridge.on_relationship_changed)}),
             log
-        ).install(Zone,services.relationship_service().__class__,_kind,_score_changed)
+        ).install(Zone,RelationshipService,_kind,_score_changed)
         _sim_on_add_original()
         _on_load_hook()
         _on_save_hook()
