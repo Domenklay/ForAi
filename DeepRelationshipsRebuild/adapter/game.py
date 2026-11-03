@@ -10,7 +10,7 @@ import sims4.resources
 
 from engine.coordinator import StageCoordinator
 from engine.events import EventDispatcher
-from engine.moodlets import STAGE_BUFFS
+from engine.moodlets import STAGE_BUFFS, EXTRA_BUFF_IDS, ALL_BUFFS
 
 LOG_PREFIX = "DEEPREL_V08"
 _HOOKED = False
@@ -45,7 +45,7 @@ def _present_buff_ids(sim_id):
     if sim_info is None or manager is None:
         return ()
     result = set()
-    for buff_id in STAGE_BUFFS:
+    for buff_id in ALL_BUFFS:
         buff_type = manager.get(buff_id)
         if buff_type is None:
             continue
@@ -177,9 +177,14 @@ def on_zone_ready():
         return False
     try:
         manager = _buff_manager()
-        missing = [v for v in sorted(STAGE_BUFFS)
+        missing = [v for v in sorted(ALL_BUFFS)
                    if manager is None or manager.get(v) is None]
-        _log("STAGE BUFF REGISTRATION {}/10 missing {}".format(10-len(missing), missing))
+        stage_missing = [v for v in sorted(STAGE_BUFFS)
+                         if manager is None or manager.get(v) is None]
+        extra_missing = [v for v in sorted(EXTRA_BUFF_IDS)
+                         if manager is None or manager.get(v) is None]
+        _log("BUFF REGISTRATION stages {}/10 extras {}/16 missing {}".format(
+            10-len(stage_missing), 16-len(extra_missing), missing))
         return _DISPATCHER.household_loaded(_household_ids())
     except Exception:
         _log("ZONE ERROR {}".format(traceback.format_exc()))
@@ -189,4 +194,14 @@ def on_zone_ready():
 def on_relationship_changed(source_id, target_id, kind="delta"):
     if _DISPATCHER is None:
         return False
+    # Most vanilla relationship changes belong to untracked NPCs. Do not
+    # evaluate all 26 buffs for both Sims when neither has a record.
+    if kind in ("romance", "friendship"):
+        try:
+            ids = {str(r.get("source_id")) for r in _DISPATCHER.coordinator.record_reader()
+                   if isinstance(r, dict)}
+            if str(source_id) not in ids and str(target_id) not in ids:
+                return True
+        except Exception:
+            _log("EVENT TRACKED LOOKUP ERROR {}".format(traceback.format_exc()))
     return _DISPATCHER.pair_changed(source_id, target_id, kind)
