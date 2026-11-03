@@ -1,0 +1,16 @@
+name: Deep Relationships v0.8 clean engine tests
+on:
+  push:
+    branches:
+      - rebuild/deep-relationships-v0.8
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7.17'
+      - name: Run stage regression tests
+        run: python -m unittest discover -s DeepRelationshipsRebuild/tests -v
