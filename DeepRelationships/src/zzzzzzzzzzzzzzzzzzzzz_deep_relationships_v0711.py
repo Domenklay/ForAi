@@ -199,6 +199,18 @@ _OLD_MARK_BREAKUP_PAIR = stability._mark_breakup_pair
 
 
 def _mark_breakup_pair_v0711(source_id, target_id, notify=True):
+    # Loading historical vanilla Ex bits must not cancel a genuine reunion.
+    # New, player-driven Break Up / Divorce events pass notify=True.
+    if not notify:
+        try:
+            saved = [core._existing_record(_id(a), _id(b))
+                     for a, b in ((source_id, target_id), (target_id, source_id))]
+            if any(record is not None and record.get('reunion_accepted')
+                   and str(record.get('breakup_state', 'none')) != 'ended'
+                   for record in saved):
+                return False
+        except Exception:
+            pass
     for a, b in ((source_id, target_id), (target_id, source_id)):
         try:
             record = core._existing_record(_id(a), _id(b))
