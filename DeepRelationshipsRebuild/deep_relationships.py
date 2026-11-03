@@ -260,7 +260,7 @@ def _notify_startup():
         stages = sum(1 for i in STAGE_BUFFS if buff_manager and buff_manager.get(i))
         extras = sum(1 for i in EXTRA_BUFF_IDS if buff_manager and buff_manager.get(i))
         message = ("Мод v{} запущен в безопасном режиме. "
-                   "Мудлеты временно отключены; только отчёт отношений. "
+                   "Мудлеты временно отключены; меню отношений работает. "
                    "Слот: {}.").format(VERSION, _slot_id())
         dialog = UiDialogNotification.TunableFactory().default(
             sim,
@@ -537,11 +537,8 @@ def _install_ui(sim=None):
     def attach(s):
         current=tuple(getattr(s,"_super_affordances",()))
         added=0
-        # The old action tunings are not loaded by EA in v0.8.6; keep only
-        # the known-working report interaction until rebuilt from vanilla.
+        # Safe-mode package carries corrected action XML and excludes Buffs.
         for name, guid in TUNINGS.items():
-            if name != "report":
-                continue
             affordance=manager.get(guid)
             if affordance is None:
                 log("UI TUNING MISSING {} {}".format(name,guid))
