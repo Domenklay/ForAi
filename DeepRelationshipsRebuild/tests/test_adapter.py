@@ -111,7 +111,7 @@ class GameAdapterTests(unittest.TestCase):
     def test_missing_buff_is_reported_as_failure(self):
         self.game.install(lambda: self.records, self.logs.append)
         self.assertFalse(self.game.on_zone_ready())
-        self.assertTrue(any("REGISTRATION 0/10" in x for x in self.logs))
+        self.assertTrue(any("stages 0/10 extras 0/16" in x for x in self.logs))
         self.assertTrue(any("missing" in x for x in self.logs))
 
     def test_updates_after_relationship_change(self):
