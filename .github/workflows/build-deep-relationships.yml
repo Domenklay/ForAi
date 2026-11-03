@@ -3,7 +3,7 @@ name: Build Deep Relationships
 on:
   push:
     branches:
-      - build/deep-relationships-v0.7.15-moodlet-delivery
+      - build/deep-relationships-v0.7.15-stage-diagnostics
   workflow_dispatch:
 
 jobs:
