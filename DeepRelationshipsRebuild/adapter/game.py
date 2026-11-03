@@ -13,6 +13,8 @@ from engine.events import EventDispatcher
 from engine.moodlets import STAGE_BUFFS, EXTRA_BUFF_IDS, ALL_BUFFS
 
 LOG_PREFIX = "DEEPREL_V08"
+# Safety mode: do not add or remove any Buff while moodlet UI corruption is unresolved.
+CUSTOM_BUFFS_ENABLED = False
 _HOOKED = False
 _DISPATCHER = None
 _DIAGNOSTIC_LOG = None
@@ -40,6 +42,8 @@ def _buff_manager():
 
 
 def _present_buff_ids(sim_id):
+    if not CUSTOM_BUFFS_ENABLED:
+        return ()
     sim_info = _sim_info(sim_id)
     manager = _buff_manager()
     if sim_info is None or manager is None:
@@ -86,6 +90,8 @@ def _active_buff_entry(component, buff_type):
 
 
 def _remove_buff(sim_id, buff_id):
+    if not CUSTOM_BUFFS_ENABLED:
+        return
     sim_info = _sim_info(sim_id)
     manager = _buff_manager()
     buff_type = manager.get(buff_id) if manager is not None else None
@@ -143,6 +149,8 @@ def _remove_buff(sim_id, buff_id):
 
 
 def _add_buff(sim_id, buff_id):
+    if not CUSTOM_BUFFS_ENABLED:
+        return
     sim_info = _sim_info(sim_id)
     manager = _buff_manager()
     buff_type = manager.get(buff_id) if manager is not None else None
@@ -176,6 +184,9 @@ def on_zone_ready():
         _log("ZONE IGNORED: BRIDGE NOT INITIALIZED")
         return False
     try:
+        if not CUSTOM_BUFFS_ENABLED:
+            _log("MOODLET ENGINE DISABLED (safe mode), no player Buff mutations")
+            return True
         manager = _buff_manager()
         missing = [v for v in sorted(ALL_BUFFS)
                    if manager is None or manager.get(v) is None]
@@ -192,7 +203,7 @@ def on_zone_ready():
 
 
 def on_relationship_changed(source_id, target_id, kind="delta"):
-    if _DISPATCHER is None:
+    if _DISPATCHER is None or not CUSTOM_BUFFS_ENABLED:
         return False
     # Most vanilla relationship changes belong to untracked NPCs. Do not
     # evaluate all 26 buffs for both Sims when neither has a record.
