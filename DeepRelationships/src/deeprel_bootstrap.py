@@ -25,14 +25,16 @@ try:
     import zzzzzzzzzzzzzzzz_deep_relationships_v075
     import zzzzzzzzzzzzzzzzz_deep_relationships_v076
     import zzzzzzzzzzzzzzzzzz_deep_relationships_v078
-    import zzzzzzzzzzzzzzzzzzzz_deep_relationships_v079 as final_layer
+    import zzzzzzzzzzzzzzzzzzz_deep_relationships_v079
+    import zzzzzzzzzzzzzzzzzzzz_deep_relationships_v0710
+    import zzzzzzzzzzzzzzzzzzzzz_deep_relationships_v0711 as final_layer
 
-    base.VERSION = '0.7.10'
-    moodlets.VERSION = '0.7.10'
-    base.flog('V0710 FINAL STAGE DELIVERY LAYER IMPORTED')
+    base.VERSION = '0.7.11'
+    moodlets.VERSION = '0.7.11'
+    base.flog('V0711 FINAL STAGE DELIVERY LAYER IMPORTED')
 except Exception:
     try:
-        base.flog('V0710 BOOTSTRAP FAILED')
+        base.flog('V0711 BOOTSTRAP FAILED')
         base.flog(traceback.format_exc())
     except Exception:
         pass
