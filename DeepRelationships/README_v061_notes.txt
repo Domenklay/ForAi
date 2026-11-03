@@ -1,0 +1,1 @@
+v0.6.1 fixes pair-level moodlet consistency: active conflict in either direction suppresses positive relationship buffs for both partners, offender receives unstable relationship tension, and both Sims are resynced immediately after grievances/deltas.
