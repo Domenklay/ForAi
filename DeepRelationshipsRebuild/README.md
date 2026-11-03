@@ -26,4 +26,8 @@ This directory is a new codebase; no incremental zzzz patch modules, no automati
 
 No user-facing "complete" zip unless import graph, Python 3.7 bytecode, resource IDs,
 interaction registrations, migration tests and the in-game smoke test have all passed.
-Current work contains a stage selector, stage moodlet diff, pair coordinator, action catalogue, event dispatcher, read-only legacy reader, experimental Sims 4 Buff adapter and idempotent game hooks, with offline and mock-game tests. New pure gameplay rules now handle ten original actions, grievance/memory accumulation, negative social deltas and selective recovery. Missing: wiring those rules into actual Sims 4 events, UI interaction tuning, registered in-game runners, dedicated save lifecycle, the v0.8 bootstrap and in-game smoke tests. No installable v0.8 release yet.
+The new `runtime.py` composes game bridge, pure action registry, and in-memory relationship store; it deliberately does not patch save/load hooks. Current work contains a stage selector, stage moodlet diff, pair coordinator, action catalogue, event dispatcher, read-only legacy reader, experimental Sims 4 Buff adapter and idempotent game hooks, with offline and mock-game tests. New pure gameplay rules now handle ten original actions, grievance/memory accumulation, negative social deltas and selective recovery. Missing: wiring those rules into actual Sims 4 events, UI interaction tuning, registered in-game runners, dedicated save lifecycle, the v0.8 bootstrap and in-game smoke tests. No installable v0.8 release yet.
+
+## Install status
+
+This source archive is for review and tests, **not** a `.ts4script`/`.package` installation. It must not be placed into `Mods`. Existing save data are never overwritten by the preview. A future game-ready release still needs the bootstrap, registered Sim interactions, real save lifecycle, Buff resources verification, game-version validation and in-game testing.
