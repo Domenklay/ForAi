@@ -292,9 +292,9 @@ def _sync_zone():
 
 def _tick(_):
     try:
-        from engine.grievances import age
+        from engine.lifecycle import tick_record
         for record in _STORE._pairs.values():
-            age(record)
+            tick_record(record)
         _STORE.dirty=True
         _scan()
         _runtime().on_zone_ready()
