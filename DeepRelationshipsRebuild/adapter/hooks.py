@@ -40,17 +40,17 @@ class GameHooks(object):
         def zone_hook(original, zone, *args, **kwargs):
             result = original(zone, *args, **kwargs)
             try:
-                dispatcher.household_loaded()
+                dispatcher.on_zone_ready()
             except Exception:
                 log("HOOK ZONE ERROR {}".format(traceback.format_exc()))
             return result
 
-        def score_add(original, relationship, sim_a, sim_b, increment,
-                      track=None, **kwargs):
-            result = original(relationship, sim_a, sim_b, increment,
-                              track=track, **kwargs)
+        def score_add(original, *args, **kwargs):
+            # Forward the exact signature to EA, including its default track.
+            result = original(*args, **kwargs)
             try:
-                kind = kind_from_track(track)
+                sim_a, sim_b, increment = args[1:4]
+                kind = kind_from_track(kwargs.get("track", None))
                 if kind is not None:
                     after_score_update(sim_a, sim_b, kind, increment)
                     dispatcher.on_relationship_changed(sim_a, sim_b, kind)
@@ -58,22 +58,29 @@ class GameHooks(object):
                 log("HOOK ADD ERROR {}".format(traceback.format_exc()))
             return result
 
-        def score_set(original, relationship, sim_a, sim_b, value,
-                      track=None, **kwargs):
+        def score_set(original, *args, **kwargs):
+            relationship = args[0]
+            sim_a, sim_b, value = args[1:4]
+            track = kwargs.get("track", None)
             kind = kind_from_track(track)
             before = None
             if kind is not None:
                 try:
-                    before = float(relationship.get_relationship_score(
-                        sim_a, sim_b, track=track))
+                    if "track" in kwargs:
+                        before = float(relationship.get_relationship_score(
+                            sim_a, sim_b, track=track))
+                    else:
+                        before = float(relationship.get_relationship_score(sim_a, sim_b))
                 except Exception:
                     log("HOOK SET BEFORE ERROR {}".format(traceback.format_exc()))
-            result = original(relationship, sim_a, sim_b, value,
-                              track=track, **kwargs)
+            result = original(*args, **kwargs)
             if kind is not None and before is not None:
                 try:
-                    after = float(relationship.get_relationship_score(
-                        sim_a, sim_b, track=track))
+                    if "track" in kwargs:
+                        after = float(relationship.get_relationship_score(
+                            sim_a, sim_b, track=track))
+                    else:
+                        after = float(relationship.get_relationship_score(sim_a, sim_b))
                     delta = after - before
                     if abs(delta) > 0.0001:
                         after_score_update(sim_a, sim_b, kind, delta)
