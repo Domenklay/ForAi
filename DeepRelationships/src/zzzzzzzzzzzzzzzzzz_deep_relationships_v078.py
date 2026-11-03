@@ -16,8 +16,8 @@ import zzy_deep_relationships_moodlets as moodlets
 import zzzzz_deep_relationships_core_v046 as core
 import zzzzzz_deep_relationships_reconciliation_v050 as reconciliation
 import zzzzzzzz_deep_relationships_memory_v060 as memory
-import zzzzzzzzzzzz_deep_relationships_breakup_v070 as breakup
-import zzzzzzzzzzzzzzzzzz_deep_relationships_v076 as v076
+import zzzzzzzzzzz_deep_relationships_breakup_v070 as breakup
+import zzzzzzzzzzzzzzzzz_deep_relationships_v076 as v076
 
 VERSION = '0.7.8'
 base.VERSION = VERSION
