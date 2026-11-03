@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Deep Relationships v0.7.9 deterministic bootstrap."""
+"""Deep Relationships v0.7.10 deterministic bootstrap."""
 
 import traceback
 
 try:
     import deep_relationships as base
-    base.flog('V079 BOOTSTRAP START')
+    base.flog('V0710 BOOTSTRAP START')
 
     import zz_deep_relationships_grievances
     import zzy_deep_relationships_moodlets as moodlets
@@ -27,12 +27,12 @@ try:
     import zzzzzzzzzzzzzzzzzz_deep_relationships_v078
     import zzzzzzzzzzzzzzzzzzzz_deep_relationships_v079 as final_layer
 
-    base.VERSION = '0.7.9'
-    moodlets.VERSION = '0.7.9'
-    base.flog('V079 FINAL STAGE DELIVERY LAYER IMPORTED')
+    base.VERSION = '0.7.10'
+    moodlets.VERSION = '0.7.10'
+    base.flog('V0710 FINAL STAGE DELIVERY LAYER IMPORTED')
 except Exception:
     try:
-        base.flog('V079 BOOTSTRAP FAILED')
+        base.flog('V0710 BOOTSTRAP FAILED')
         base.flog(traceback.format_exc())
     except Exception:
         pass
