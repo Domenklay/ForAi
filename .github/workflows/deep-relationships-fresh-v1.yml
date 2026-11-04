@@ -1,0 +1,42 @@
+name: Deep Relationships Fresh v1 clean compile
+on:
+  push:
+    branches:
+      - rebuild/deep-relationships-fresh-v1
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7.17'
+      - name: Test new model
+        run: python -m unittest discover -s DeepRelationshipsFresh/tests -v
+      - name: Build verified Python 3.7 ts4script
+        run: |
+          python - <<'PY'
+          import pathlib,py_compile,zipfile,importlib.util
+          root=pathlib.Path('DeepRelationshipsFresh/src')
+          dest=pathlib.Path('DeepRelationshipsFresh/dist')
+          dest.mkdir(parents=True,exist_ok=True)
+          script=dest/'DeepRelationshipsFresh_v1.0.0_ALPHA.ts4script'
+          with zipfile.ZipFile(str(script),'w',zipfile.ZIP_DEFLATED) as z:
+              for p in sorted(root.glob('*.py')):
+                  target=dest/(p.stem+'.pyc')
+                  py_compile.compile(str(p),cfile=str(target),doraise=True)
+                  magic=target.read_bytes()[:4]
+                  if magic!=bytes.fromhex('420d0d0a'):
+                      raise RuntimeError('Wrong Sims4 Python magic for '+str(p))
+                  z.write(str(target),target.name)
+          with zipfile.ZipFile(str(script)) as z:
+              assert set(z.namelist())=={'deeprel_fresh.pyc','drfresh_model.pyc'}
+              assert z.testzip() is None
+          print(script,script.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeepRelationshipsFresh-v1.0.0-ALPHA-SCRIPT
+          path: DeepRelationshipsFresh/dist/DeepRelationshipsFresh_v1.0.0_ALPHA.ts4script
+          if-no-files-found: error
