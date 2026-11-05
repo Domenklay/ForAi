@@ -29,14 +29,43 @@ jobs:
           base64 -d quietmoments_apk_build_payload.b64.txt > quietmoments-build.tar.xz
           mkdir -p quietmoments
           tar -xJf quietmoments-build.tar.xz -C quietmoments
+      - name: Prepare wider-compatibility test build
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('quietmoments/app/build.gradle.kts')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+              'minSdk = 26': 'minSdk = 23',
+              'versionCode = 6': 'versionCode = 7',
+              'versionName = "0.5.0"': 'versionName = "0.5.1"',
+              'applicationIdSuffix = ".beta05"': 'applicationIdSuffix = ".beta051"',
+          }
+          for old,new in replacements.items():
+              if old not in s: raise SystemExit(f'Missing expected build value: {old}')
+              s = s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          print('Built as com.quietmoments.diary.beta051, minSdk=23')
+          PY
       - name: Build debug APK
         env:
           ORG_GRADLE_PROJECT_YANDEX_CLIENT_ID: ${{ vars.YANDEX_CLIENT_ID }}
         working-directory: quietmoments
         run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify installable APK
+        run: |
+          APK="quietmoments/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK" | tail -n 2
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SIGNER=$(find "$SDK/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$SIGNER"
+          "$SIGNER" verify --verbose --print-certs "$APK"
+          AAPT=$(find "$SDK/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -n 1)
+          if [ -n "$AAPT" ]; then "$AAPT" dump badging "$APK" | head -n 18; fi
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: QuietMoments-test-apk
+          name: QuietMoments-v0.5.1-compatibility-test-apk
           path: quietmoments/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
