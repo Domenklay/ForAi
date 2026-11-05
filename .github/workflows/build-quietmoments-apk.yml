@@ -16,12 +16,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Android platform 35
+      - name: Check preinstalled SDK
         run: |
-          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
-          echo "SDK root: ${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms" || true
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          test -f "${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms/android-35/android.jar"
+          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools"
       - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
