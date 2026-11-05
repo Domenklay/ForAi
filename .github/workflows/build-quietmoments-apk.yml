@@ -1,0 +1,42 @@
+name: Build QuietMoments Test APK
+on:
+  push:
+    branches:
+      - build/quietmoments-apk
+  workflow_dispatch:
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Android platform 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Unpack isolated app project
+        run: |
+          base64 -d quietmoments_apk_build_payload.b64.txt > quietmoments-build.tar.xz
+          mkdir -p quietmoments
+          tar -xJf quietmoments-build.tar.xz -C quietmoments
+      - name: Build debug APK
+        env:
+          ORG_GRADLE_PROJECT_YANDEX_CLIENT_ID: ${{ vars.YANDEX_CLIENT_ID }}
+        working-directory: quietmoments
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuietMoments-test-apk
+          path: quietmoments/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
