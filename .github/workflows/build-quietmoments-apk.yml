@@ -2,7 +2,7 @@ name: Build QuietMoments Test APK
 on:
   push:
     branches:
-      - build/quietmoments-apk
+      - build/myvideodiary-v070
   workflow_dispatch:
 jobs:
   build-apk:
@@ -31,9 +31,9 @@ jobs:
           tar -xJf quietmoments-build.tar.xz -C quietmoments
       - name: Verify expected 0.6.1 source version
         run: |
-          grep -q 'versionCode = 10' quietmoments/app/build.gradle.kts
-          grep -q 'versionName = "0.6.1"' quietmoments/app/build.gradle.kts
-          grep -q 'applicationIdSuffix = ".beta061"' quietmoments/app/build.gradle.kts
+          grep -q 'versionCode = 11' quietmoments/app/build.gradle.kts
+          grep -q 'versionName = "0.7.0"' quietmoments/app/build.gradle.kts
+          grep -q 'applicationIdSuffix = ".beta070"' quietmoments/app/build.gradle.kts
           test -f quietmoments/app/src/main/java/com/quietmoments/diary/PasswordGate.kt
           test -f quietmoments/app/src/main/res/drawable/mascot_cat_luna.png
       - name: Build debug APK
