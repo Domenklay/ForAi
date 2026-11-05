@@ -26,7 +26,7 @@ jobs:
           gradle-version: '8.9'
       - name: Unpack isolated app project
         run: |
-          base64 -d quietmoments_apk_build_payload.b64.txt > quietmoments-build.tar.xz
+          cat quietmoments_apk_build_payload.b64.txt quietmoments_apk_build_payload.part2.b64.txt | base64 -d > quietmoments-build.tar.xz
           mkdir -p quietmoments
           tar -xJf quietmoments-build.tar.xz -C quietmoments
       - name: Verify expected 0.9.0 source version
