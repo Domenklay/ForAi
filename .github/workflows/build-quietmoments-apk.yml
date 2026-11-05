@@ -2,7 +2,7 @@ name: Build QuietMoments Test APK
 on:
   push:
     branches:
-      - build/myvideodiary-v070
+      - build/myvideodiary-v071
   workflow_dispatch:
 jobs:
   build-apk:
@@ -29,11 +29,11 @@ jobs:
           base64 -d quietmoments_apk_build_payload.b64.txt > quietmoments-build.tar.xz
           mkdir -p quietmoments
           tar -xJf quietmoments-build.tar.xz -C quietmoments
-      - name: Verify expected 0.6.1 source version
+      - name: Verify expected 0.7.1 source version
         run: |
-          grep -q 'versionCode = 11' quietmoments/app/build.gradle.kts
-          grep -q 'versionName = "0.7.0"' quietmoments/app/build.gradle.kts
-          grep -q 'applicationIdSuffix = ".beta070"' quietmoments/app/build.gradle.kts
+          grep -q 'versionCode = 12' quietmoments/app/build.gradle.kts
+          grep -q 'versionName = "0.7.1"' quietmoments/app/build.gradle.kts
+          grep -q 'applicationIdSuffix = ".beta071"' quietmoments/app/build.gradle.kts
           test -f quietmoments/app/src/main/java/com/quietmoments/diary/PasswordGate.kt
           test -f quietmoments/app/src/main/res/drawable/mascot_cat_luna.png
       - name: Build debug APK
@@ -55,6 +55,6 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MyVideoDiary-v0.5.2-apk
+          name: MyVideoDiary-v0.7.1-reliability-apk
           path: quietmoments/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
