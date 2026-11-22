@@ -1,0 +1,37 @@
+name: Build FTB Quest Chain Tracker (isolated branch)
+on:
+  push:
+    branches:
+      - build/ftb-quest-chain-tracker-1211
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Extract client add-on sources
+        run: |
+          mkdir -p ftbchain
+          tar -xJf ftbchain/ftbchain-src.tar.xz -C ftbchain
+      - name: Check chain-planner tests
+        working-directory: ftbchain
+        run: bash tests/run-planner-tests.sh
+      - name: Compile NeoForge mod
+        working-directory: ftbchain
+        run: gradle --no-daemon build --stacktrace
+      - name: Publish built JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FTB-Quest-Chain-Tracker-1.21.1-NeoForge
+          path: ftbchain/build/libs/*.jar
+          if-no-files-found: error
