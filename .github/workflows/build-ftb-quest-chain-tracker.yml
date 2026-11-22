@@ -1,4 +1,4 @@
-name: Build FTB Quest Chain Tracker v0.3.1 Russian HUD
+name: Build FTB Quest Chain Tracker v0.3.2 (20 priority objectives)
 on:
   push:
     branches:
@@ -22,24 +22,6 @@ jobs:
         run: |
           mkdir -p ftbchain
           tar -xJf ftbchain/ftbchain-src.tar.xz -C ftbchain
-      - name: Localize original FTB Quests pinned HUD header (v0.3.1)
-        working-directory: ftbchain
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          source = Path("src/main/java/com/domenklay/questchain/PinnedOverlayRenderer.java")
-          text = source.read_text(encoding="utf-8")
-          before = 'Component.translatable("ftbquests.pinned")'
-          after = 'Component.translatable("hud.ftbchaintracker.header")'
-          if before not in text:
-              raise RuntimeError("Expected original HUD title code not found")
-          source.write_text(text.replace(before, after), encoding="utf-8")
-          props = Path("gradle.properties")
-          cfg = props.read_text(encoding="utf-8")
-          if "mod_version=0.3.0" not in cfg:
-              raise RuntimeError("Unexpected base mod version")
-          props.write_text(cfg.replace("mod_version=0.3.0", "mod_version=0.3.1"), encoding="utf-8")
-          PY
       - name: Check chain-planner tests
         working-directory: ftbchain
         run: bash tests/run-planner-tests.sh
@@ -50,6 +32,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: FTB-Quest-Chain-Tracker-1.21.1-NeoForge-v0.3.1
+          name: FTB-Quest-Chain-Tracker-1.21.1-NeoForge-v0.3.2
           path: ftbchain/build/libs/*.jar
           if-no-files-found: error
