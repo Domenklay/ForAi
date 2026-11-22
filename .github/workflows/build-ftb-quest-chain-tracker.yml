@@ -1,4 +1,4 @@
-name: Build FTB Quest Chain Tracker (isolated branch)
+name: Build FTB Quest Chain Tracker 0.2 (native pinned HUD)
 on:
   push:
     branches:
@@ -22,19 +22,6 @@ jobs:
         run: |
           mkdir -p ftbchain
           tar -xJf ftbchain/ftbchain-src.tar.xz -C ftbchain
-      - name: Adapt FTB 2101 GUI + NeoForge tick imports
-        working-directory: ftbchain
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path("src/main/java/com/domenklay/questchain/ClientTracker.java")
-          s=p.read_text()
-          s=s.replace("import net.neoforged.neoforge.event.tick.ClientTickEvent;", "import net.neoforged.neoforge.client.event.ClientTickEvent;\nimport dev.ftb.mods.ftblibrary.util.client.ClientUtils;")
-          s=s.replace('        if (!(event.getScreen() instanceof QuestScreen screen)) return;', '        QuestScreen screen = ClientUtils.getCurrentGuiAs(QuestScreen.class);\n        if (screen == null) return;')
-          s=s.replace('        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !(event.getScreen() instanceof QuestScreen screen)) return;', '        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;\n        QuestScreen screen = ClientUtils.getCurrentGuiAs(QuestScreen.class);\n        if (screen == null) return;')
-          s=s.replace('                && event.getScreen() instanceof QuestScreen screen) {', '                && ClientUtils.getCurrentGuiAs(QuestScreen.class) != null) {\n            QuestScreen screen = ClientUtils.getCurrentGuiAs(QuestScreen.class);')
-          p.write_text(s)
-          PY
       - name: Check chain-planner tests
         working-directory: ftbchain
         run: bash tests/run-planner-tests.sh
